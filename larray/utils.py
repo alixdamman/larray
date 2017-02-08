@@ -8,10 +8,17 @@ import itertools
 import sys
 import operator
 import warnings
+import datetime
+import pandas as pd
 from textwrap import wrap
 from functools import reduce
 from itertools import product
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
+
+if sys.version < '3':
+    import StringIO
+else:
+    from io import StringIO
 
 try:
     from itertools import izip
@@ -456,3 +463,186 @@ def float_error_handler_factory(stacklevel):
             extra = ''
         warnings.warn("{} encountered during operation{}".format(error, extra), RuntimeWarning, stacklevel=stacklevel)
     return error_handler
+
+
+# XXX : with Python >= 3.5, we only need to inherit from OrderedDict and to override
+#       getattr, setattr and delattr
+class Attributes(object):
+    """
+    Dictionary subclass enabling attribute lookup/assignment of keys/values.
+    """
+    def __init__(self, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], Attributes):
+            args = [args[0]._od]
+        self._od = OrderedDict(*args, **kwargs)
+
+    def __contains__(self, key):
+        return key in self._od
+
+    def __getattr__(self, key):
+        return self._od[key]
+
+    def __setattr__(self, key, value):
+        if key == '_od':
+            self.__dict__['_od'] = value
+        else:
+            self._od[key] = value
+
+    def __delattr__(self, key):
+        del self._od[key]
+
+    def __len__(self):
+        return len(self._od)
+
+    def __iter__(self):
+        return iter(self._od)
+
+    def __reversed__(self):
+        return reversed(self._od)
+
+    def __eq__(self, other):
+        if isinstance(other, Attributes):
+            return self._od == other._od
+        elif isinstance(other, OrderedDict):
+            return self._od == other
+        else:
+            return False
+
+    def __repr__(self):
+        return '\n'.join(['{}: {}'.format(k, v) for k, v in self._od.items()])
+
+    def copy(self):
+        return Attributes(self._od)
+
+    def update(self, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], Attributes):
+            args = [args[0]._od]
+        self._od.update(*args, **kwargs)
+
+    def clear(self):
+        self._od.clear()
+
+    # ---------- IO methods ----------
+
+    def to_csv(self, filepath, sep=','):
+        if len(self):
+            with open(filepath, 'w') as f:
+                f.write('# Attributes\n')
+                f.write('\n'.join(['# {}{}{}'.format(k, sep, v) for k, v in self._od.items()]) + '\n')
+                f.write('# Data\n')
+
+    def to_excel_xw(self, sheet, position):
+        # Use xlwings
+        cell = sheet[position]
+        if len(self) > 0:
+            cell.value = 'Attributes'
+            cell = cell.offset(1, 0)
+            cell.options(dim=2).value = [[k, v] for k, v in self._od.items()]
+            cell = cell.offset(len(self), 0)
+            cell.value = 'Data'
+            cell = cell.offset(1, 0)
+        return cell
+
+    def to_excel(self, filepath, sheet_name, engine=None):
+        # Use Pandas
+        if len(self) > 0:
+            df = pd.DataFrame(data=[''] + list(self.values()) + [''],
+                              index=['Attributes'] + list(self._od.keys()) + ['Data'])
+            df.to_excel(filepath, sheet_name, header=False, engine=engine)
+
+    def to_hdf(self, hdfstore, key):
+        if len(self):
+            hdfstore.get_storer(key).attrs.metadata = self
+
+    @classmethod
+    def from_csv(cls, filepath, sep=','):
+        def _convert_attribute(key, value):
+            # XXX : We could use the option 'parse_dates' of read_csv.
+            # Unfortunately, this option returns Series with only datetime or object dtype.
+            # We loose the automatic conversation of all other dtypes (bool, int, float).
+            # This is why we proceed in two steps bellow
+
+            # get Series with dtype bool, numeric (int, float) or object
+            ser = pd.read_csv(StringIO(key + '\n' + value), squeeze=True)
+            # convert object (string) to datetime when it's possible
+            if ser.dtypes == np.object_:
+                ser = pd.to_datetime(ser, errors='ignore', infer_datetime_format=True)
+            value = ser.values[0]
+            return key, value
+
+        def _read_attributes(stream):
+            if stream.readline().strip() == '# Attributes':
+                for line in stream:
+                    if line.strip() == '# Data':
+                        break
+                    else:
+                        key, value = line.replace('#', '').strip().split(sep)
+                        key, value = _convert_attribute(key, value)
+                        attributes._od[key] = value
+
+        attributes = Attributes()
+        if not isinstance(filepath, StringIO):
+            with open(filepath, 'r') as stream:
+                _read_attributes(stream)
+        else:
+            _read_attributes(filepath)
+            filepath.seek(0)
+        return attributes
+
+    # Use xlwings
+    @classmethod
+    def from_excel_xw(cls, sheet):
+        def _convert_value(value):
+            # Excel 'numbers' are always floats
+            if isinstance(value, float) and value == int(value):
+                value = int(value)
+            return value
+
+        attributes = Attributes()
+        cell = sheet['A1']
+        if cell.value == 'Attributes':
+            counter = 0
+            while counter < sheet.shape[0]:
+                cell = cell.offset(1, 0)
+                key, value = cell.value, cell.offset(0, 1).value
+                value = _convert_value(value)
+                if key == 'Data':
+                    break
+                attributes._od[key] = value
+                counter += 1
+        return attributes
+
+    # Use xlrd
+    @classmethod
+    def from_excel(cls, sheet):
+        def _convert_value(value, cell):
+            # ctype for cells (see doc of Cell class from xlrd):
+            # 2 --> XL_CELL_NUMBER, float
+            # 3 --> XL_CELL_DATE, float
+            # 4 --> XL_CELL_BOOLEAN, int (1 means TRUE, 0 means FALSE)
+            from xlrd import xldate_as_tuple
+            if cell.ctype == 2 and value == int(value):
+                value = int(value)
+            elif cell.ctype == 3:
+                value = datetime.datetime(*xldate_as_tuple(value, 0))
+            elif cell.ctype == 4:
+                value = bool(value)
+            return value
+
+        attributes = Attributes()
+        rowx = 0
+        if sheet.cell(rowx=rowx, colx=0).value == 'Attributes':
+            while rowx < sheet.nrows:
+                rowx += 1
+                key = sheet.cell(rowx=rowx, colx=0).value
+                value = sheet.cell(rowx=rowx, colx=1).value
+                value = _convert_value(value, sheet.cell(rowx=rowx, colx=1))
+                if key == 'Data':
+                    break
+                attributes._od[key] = value
+        return attributes
+
+    @classmethod
+    def from_hdf(cls, hdfstore, key):
+        if 'metadata' in hdfstore.get_storer(key).attrs._v_attrnames:
+            return hdfstore.get_storer(key).attrs.metadata

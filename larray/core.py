@@ -87,6 +87,7 @@ Matrix class
 import csv
 from collections import Iterable, Sequence
 from itertools import product, chain, groupby, islice
+import datetime
 import os
 import re
 import sys
@@ -116,7 +117,7 @@ from larray.utils import (table2str, size2str, unique, csv_open, long,
                           decode, basestring, unicode, bytes, izip, rproduct,
                           ReprString, duplicates, array_lookup2, strip_rows,
                           skip_comment_cells, find_closing_chr, StringIO, PY2,
-                          float_error_handler_factory)
+                          Attributes, float_error_handler_factory)
 
 
 nan = np.nan
@@ -1136,9 +1137,9 @@ class Axis(object):
 
         Parameters
         ----------
-        *args
+        \*args
             (collection of) selected label(s) to form a group.
-        **kwargs
+        \**kwargs
             name of the group. There is no other accepted keywords.
 
         Examples
@@ -1545,7 +1546,7 @@ class Axis(object):
             except KeyError:
                 return array_lookup2(key, self._sorted_keys, self._sorted_values)
         elif isinstance(key, LArray):
-            return LArray(self.translate(key.data), key.axes)
+            return LArray(self.translate(key.data), key.axes, attributes=key.attrs)
         else:
             # the first mapping[key] above will cover most cases. This code
             # path is only used if the key was given in "non normalized form"
@@ -4076,7 +4077,7 @@ class LArrayPointsIndexer(object):
             # scalars do not need to be wrapped in LArray
             return data
         else:
-            return LArray(data, axes)
+            return LArray(data, axes, attributes=self.array.attrs)
 
     # FIXME
     def __setitem__(self, key, value):
@@ -4098,7 +4099,7 @@ class LArrayPositionalPointsIndexer(object):
             # scalars do not need to be wrapped in LArray
             return data
         else:
-            return LArray(data, axes)
+            return LArray(data, axes, attributes=self.array.attrs)
 
     def __setitem__(self, key, value):
         data = np.asarray(self.array)
@@ -4142,7 +4143,7 @@ def get_axis(obj, i):
     return obj.axes[i] if isinstance(obj, LArray) else Axis(obj.shape[i])
 
 
-def aslarray(a):
+def aslarray(a, attributes=None, **kwargs):
     """
     Converts input as LArray if possible.
 
@@ -4150,6 +4151,16 @@ def aslarray(a):
     ----------
     a : array-like
         Input array to convert into a LArray.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -4178,9 +4189,9 @@ def aslarray(a):
     elif hasattr(a, '__larray__'):
         return a.__larray__()
     elif isinstance(a, pd.DataFrame):
-        return df_aslarray(a)
+        return df_aslarray(a, attributes=attributes, **kwargs)
     else:
-        return LArray(a)
+        return LArray(a, attributes=attributes, **kwargs)
 
 
 _arg_agg = {
@@ -4322,24 +4333,16 @@ def _doc_agg_method(func, by=False, long_name='', action_verb='', extra_args=[],
 _always_return_float = {np.mean, np.nanmean, np.median, np.nanmedian, np.percentile, np.nanpercentile,
                         np.std, np.nanstd, np.var, np.nanvar}
 
-
 class LArray(object):
     """
     A LArray object represents a multidimensional, homogeneous
     array of fixed-size items with labeled axes.
+    It has also associated attributes (title, description, ...)
+    defined at object creation. These attributes can be passed
+    as keyword arguments at initialization.
 
     The function :func:`aslarray` can be used to convert a
     NumPy array or PandaS DataFrame into a LArray.
-
-    Parameters
-    ----------
-    data : scalar, tuple, list or NumPy ndarray
-        Input data.
-    axes : collection (tuple, list or AxisCollection) of axes \
-    (int, str or  Axis), optional
-        Axes.
-    title : str, optional
-        Title of array.
 
     Attributes
     ----------
@@ -4347,8 +4350,27 @@ class LArray(object):
         Data.
     axes : AxisCollection
         Axes.
-    title : str
-        Title.
+    attrs :
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array.
+
+    Parameters
+    ----------
+    data : scalar, tuple, list or NumPy ndarray
+        Input data.
+    axes : collection (tuple, list or AxisCollection) of axes \
+    (int, str or Axis), optional
+        Axes.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     See Also
     --------
@@ -4368,7 +4390,7 @@ class LArray(object):
     >>> time = Axis([2007, 2008, 2009], 'time')
     >>> axes = [age, sex, time]
     >>> data = np.zeros((len(axes), len(sex), len(time)))
-    >>> LArray(data, axes)
+    >>> LArray(data, axes, title='test array')
     age  sex\\time  2007  2008  2009
      10         M   0.0   0.0   0.0
      10         F   0.0   0.0   0.0
@@ -4405,11 +4427,7 @@ class LArray(object):
           F  10  11  12
     """
 
-    def __init__(self,
-                 data,
-                 axes=None,
-                 title=''   # type: str
-                 ):
+    def __init__(self, data, axes=None, attributes=None, **kwargs):
         data = np.asarray(data)
         ndim = data.ndim
         if axes is None:
@@ -4425,9 +4443,19 @@ class LArray(object):
                 raise ValueError("length of axes %s does not match "
                                  "data shape %s" % (axes.shape, data.shape))
 
+        _attrs = Attributes()
+        title = kwargs.pop('title', '')
+        if title:
+            _attrs.title = title
+        description = kwargs.pop('description', '')
+        if description:
+            _attrs.description = description
+        if attributes is not None:
+            _attrs.update(attributes)
+
         self.data = data
         self.axes = axes
-        self.title = title
+        self._attrs = _attrs
 
     # XXX: rename to posnonzero and implement a label version of nonzero
     def nonzero(self):
@@ -4536,17 +4564,55 @@ class LArray(object):
             self.axes = new_axes
             return self
         else:
-            return LArray(self.data, new_axes, title=self.title)
+            return LArray(self.data, new_axes, attributes=self._attrs)
 
     def with_axes(self, axes):
         warnings.warn("LArray.with_axes is deprecated, use LArray.set_axes instead", DeprecationWarning)
         return self.set_axes(axes)
+
+    @property
+    def attrs(self):
+        """Returns attributes of the array.
+
+        Returns
+        -------
+        dict:
+            Attributes of the array.
+        """
+        return self._attrs
+
+    @property
+    def title(self):
+        if 'title' in self._attrs:
+            return self._attrs['title']
+        else:
+            return 'No title'
+
+    @property
+    def description(self):
+        if 'description' in self._attrs:
+            return self._attrs['description']
+        else:
+            return 'No description'
+
+    # XXX : cannot define a setter when __setattr__
+    # has been redefined
+    def _set_attrs(self, attrs):
+        if not isinstance(attrs, (dict, Attributes)):
+            raise TypeError("Expected dict or Attributes object instead of {}".format(type(attrs)))
+        object.__setattr__(self, '_attrs', Attributes(attrs))
 
     def __getattr__(self, key):
         if key in self.axes:
             return self.axes[key]
         else:
             raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__.__name__, key))
+
+    def __setattr__(self, key, value):
+        if key is 'attrs':
+            self._set_attrs(value)
+        else:
+            object.__setattr__(self, key, value)
 
     # needed to make *un*pickling work (because otherwise, __getattr__ is called before .axes exists, which leads to
     # an infinite recursion)
@@ -4559,6 +4625,24 @@ class LArray(object):
     def __dir__(self):
         names = set(axis.name for axis in self.axes if axis.name is not None)
         return list(set(dir(self.__class__)) | names)
+
+    @property
+    def attrs(self):
+        """Returns attributes of the array.
+
+        Returns
+        -------
+        dict:
+            Attributes of the array.
+        """
+        return self._attrs
+
+    @attrs.setter
+    def attrs(self, attrs):
+        if not isinstance(attrs, dict):
+            raise TypeError("Expected dict object instead "
+                            "of {}".format(type(attrs)))
+        self._attrs = Attributes(attrs)
 
     def _ipython_key_completions_(self):
         return list(chain(*[list(labels) for labels in self.axes.labels]))
@@ -4884,7 +4968,7 @@ class LArray(object):
         cases.
         """
         data = np.ndarray.__array_wrap__(self.data, out_arr, context)
-        return LArray(data, self.axes)
+        return LArray(data, self.axes, attributes=self.attrs)
 
     def __bool__(self):
         return bool(self.data)
@@ -4901,7 +4985,7 @@ class LArray(object):
             Renames to apply. If a single axis reference is given, the `to` argument must be used.
         to : string or Axis
             New name if `renames` contains a single axis reference.
-        **kwargs :
+        \**kwargs :
             New name for each axis given as a keyword argument.
 
         Returns
@@ -4955,7 +5039,7 @@ class LArray(object):
             self.axes = AxisCollection(axes)
             return self
         else:
-            return LArray(self.data, axes)
+            return LArray(self.data, axes, attributes=self.attrs)
 
     def reindex(self, axes_to_reindex=None, new_axis=None, fill_value=np.nan, inplace=False, **kwargs):
         """Reorder and/or add new labels in axes.
@@ -5530,7 +5614,8 @@ class LArray(object):
         if isinstance(key, (LArray, np.ndarray)) and \
                 np.issubdtype(key.dtype, np.bool_):
             return LArray(data[translated_key],
-                          self._bool_key_new_axes(translated_key))
+                          self._bool_key_new_axes(translated_key),
+                          attributes=self.attrs)
 
         if any(isinstance(axis_key, LArray) for axis_key in translated_key):
             k2 = [k.data if isinstance(k, LArray) else k
@@ -5542,7 +5627,7 @@ class LArray(object):
 
             first_col = AxisCollection(axes[0])
             res_axes = first_col.union(*axes[1:])
-            return LArray(res_data, res_axes)
+            return LArray(res_data, res_axes, attributes=self.attrs)
 
         # TODO: if the original key was a list of labels,
         # subaxis(translated_key).labels == orig_key, so we should use
@@ -5562,7 +5647,7 @@ class LArray(object):
             # drop length 1 dimensions created by scalar keys
             res_data = data.reshape(tuple(len(axis) for axis in axes))
             assert _equal_modulo_len1(data.shape, res_data.shape)
-            return LArray(res_data, axes)
+            return LArray(res_data, axes, attributes=self.attrs)
 
     def __setitem__(self, key, value, collapse_slices=True):
         # TODO: if key or value has more axes than self, we should use
@@ -5784,12 +5869,17 @@ class LArray(object):
         #            -> 8, 3 WRONG
         #    4, 3, 2 -> 2, 2, 3, 2 is potentially ok (splitting dim)
         data = np.asarray(self).reshape([len(axis) for axis in target_axes])
-        return LArray(data, target_axes)
+        return LArray(data, target_axes, attributes=self.attrs)
 
     def reshape_like(self, target):
         """
         Same as reshape but with an array as input.
         Total size (= number of stored data) of the two arrays must be equal.
+
+        Parameters
+        ----------
+        target : LArray
+            Input Array.
 
         See Also
         --------
@@ -5931,7 +6021,7 @@ class LArray(object):
         new_axes = [Axis(len(axis), axis.name) for axis in old_axes]
         res_axes = self.axes[:]
         res_axes[axes] = new_axes
-        return LArray(self.data, res_axes)
+        return LArray(self.data, res_axes, attributes=self._attrs)
 
     def __str__(self):
         if not self.ndim:
@@ -6104,8 +6194,7 @@ class LArray(object):
         functions this only supports one axis at a time.
         """
         # TODO: accept a single group in axis, to filter & aggregate in one shot
-        return LArray(op(np.asarray(self), axis=self.axes.index(axis)),
-                      self.axes)
+        return LArray(op(np.asarray(self), axis=self.axes.index(axis)), self.axes)
 
     # TODO: now that items is never a (k, v), it should be renamed to
     # something else: args? (groups would be misleading because each "item"
@@ -6323,12 +6412,14 @@ class LArray(object):
 
         Parameters
         ----------
-        args
-        kwargs
-        op : aggregate function
-            Defaults to `sum()`.
-        label : scalar value
-            label to use for the total. Defaults to "total".
+        \*args
+        \**kwargs
+            * op : aggregate function
+
+                Defaults to `sum()`.
+            * label : scalar value
+
+                label to use for the total. Defaults to "total".
 
         Returns
         -------
@@ -6654,11 +6745,11 @@ class LArray(object):
     def copy(self):
         """Returns a copy of the array.
         """
-        return LArray(self.data.copy(), axes=self.axes[:], title=self.title)
+        return LArray(self.data.copy(), self.axes[:], attributes=self.attrs.copy())
 
     @property
     def info(self):
-        """Describes a LArray (title + shape and labels for each axis).
+        """Describes an array (info + shape and labels for each axis).
 
         Returns
         -------
@@ -6674,15 +6765,15 @@ class LArray(object):
         2 x 2
          nat [2]: 'BE' 'FO'
          sex [2]: 'M' 'F'
-        >>> mat1 = LArray(np.ones((2, 2)), [nat, sex], 'test matrix')
+        >>> mat1 = LArray(np.ones((2, 2)), [nat, sex], title='test matrix')
         >>> mat1.info
-        test matrix
+        title: test matrix
         2 x 2
          nat [2]: 'BE' 'FO'
          sex [2]: 'M' 'F'
         """
-        if self.title:
-            return ReprString(self.title + '\n' + self.axes.info)
+        if len(self._attrs):
+            return ReprString(repr(self._attrs) + '\n' + self.axes.info)
         else:
             return self.axes.info
 
@@ -8808,10 +8899,10 @@ class LArray(object):
             if readonly:
                 # requires numpy 1.10
                 return LArray(np.broadcast_to(broadcasted, target_axes.shape),
-                              target_axes)
+                              target_axes, attributes=self.attrs)
             else:
                 out = LArray(np.empty(target_axes.shape, dtype=self.dtype),
-                             target_axes)
+                             target_axes, attributes=self.attrs)
         out[:] = broadcasted
         return out
 
@@ -8932,7 +9023,7 @@ class LArray(object):
         return value.extend(axis, self)
 
     def extend(self, axis, other):
-        """Adds an to self along an axis.
+        """Adds an array to self along an axis.
 
         The two arrays must have compatible axes.
 
@@ -8985,6 +9076,7 @@ class LArray(object):
             concat_empty(axis, (self.axes, other.axes), self.dtype)
         self_target[:] = self
         other_target[:] = other
+        result.attrs = self.attrs
         return result
 
     def transpose(self, *args):
@@ -9049,7 +9141,7 @@ class LArray(object):
         missing_indices = [i for i in range(len(self.axes))
                            if i not in indices_present]
         axes_indices = axes_indices + missing_indices
-        return LArray(self.data.transpose(axes_indices), self.axes[axes_indices])
+        return LArray(self.data.transpose(axes_indices), self.axes[axes_indices], attributes=self._attrs)
     T = property(transpose)
 
     def clip(self, a_min, a_max, out=None):
@@ -9107,7 +9199,7 @@ class LArray(object):
 
         Examples
         --------
-        >>> from .tests.test_la import abspath
+        >>> from larray.tests.test_la import abspath
         >>> fpath = abspath('test.csv')
         >>> a = ndrange('nat=BE,FO;sex=M,F')
         >>> a
@@ -9120,9 +9212,29 @@ class LArray(object):
         nat\\sex,M,F
         BE,0,1
         FO,2,3
+        >>> a = ndrange('nat=BE,FO;sex=M,F')
+        >>> a.attrs.title = 'to_csv example'
+        >>> a.attrs.creation_date = datetime.datetime(2017, 1, 1)
+        >>> a.attrs.nb_data = 4
+        >>> a.to_csv(fpath)
+        >>> with open(fpath) as f:
+        ...     print(f.read().strip())
+        # Attributes
+        # title,to_csv example
+        # creation_date,2017-01-01 00:00:00
+        # nb_data,4
+        # Data
+        nat\\sex,M,F
+        BE,0,1
+        FO,2,3
         >>> a.to_csv(fpath, sep=';', transpose=False)
         >>> with open(fpath) as f:
         ...     print(f.read().strip())
+        # Attributes
+        # title;to_csv example
+        # creation_date;2017-01-01 00:00:00
+        # nb_data;4
+        # Data
         nat;sex;0
         BE;M;0
         BE;F;1
@@ -9131,18 +9243,29 @@ class LArray(object):
         >>> a.to_csv(fpath, dialect='classic')
         >>> with open(fpath) as f:
         ...     print(f.read().strip())
+        # Attributes
+        # title,to_csv example
+        # creation_date,2017-01-01 00:00:00
+        # nb_data,4
+        # Data
         nat,M,F
         BE,0,1
         FO,2,3
         """
+        # attributes
+        self._attrs.to_csv(filepath, sep=sep)
+        # data
         fold = dialect == 'default'
+        mode = kwargs.pop('mode', 'w')
+        if len(self._attrs):
+            mode = 'a'
         if transpose:
             frame = self.to_frame(fold, dropna)
-            frame.to_csv(filepath, sep=sep, na_rep=na_rep, **kwargs)
+            frame.to_csv(filepath, sep=sep, na_rep=na_rep, mode=mode, **kwargs)
         else:
             series = self.to_series(dropna is not None)
             series.to_csv(filepath, sep=sep, na_rep=na_rep, header=True,
-                          **kwargs)
+                          mode=mode, **kwargs)
 
     def to_hdf(self, filepath, key, *args, **kwargs):
         """
@@ -9153,8 +9276,9 @@ class LArray(object):
 
         Parameters
         ----------
-        filepath : str
-            Path where the hdf file has to be written.
+        filepath : str or pandas.HDFStore
+            If string, path where the hdf file has to be written.
+            Else, instance of pandas HDFStore class.
         key : str
             Name of the array within the HDF file.
         *args
@@ -9165,7 +9289,11 @@ class LArray(object):
         >>> a = ndtest((2, 3))
         >>> a.to_hdf('test.h5', 'a')  # doctest: +SKIP
         """
-        self.to_frame().to_hdf(filepath, key, *args, **kwargs)
+        store = pd.HDFStore(filepath) if isinstance(filepath, basestring) else filepath
+        store.put(key, self.to_frame(), **kwargs)
+        self.attrs.to_hdf(store, key)
+        if isinstance(filepath, basestring):
+            store.close()
 
     def to_excel(self, filepath=None, sheet_name=None, position='A1',
                  overwrite_file=False, clear_sheet=False, header=True,
@@ -9219,8 +9347,8 @@ class LArray(object):
         >>> a.to_excel('test.xlsx', 'Sheet1', 'A15')  # doctest: +SKIP
         """
         df = self.to_frame(fold_last_axis_name=True)
-        if engine is None:
-            engine = 'xlwings' if xw is not None else None
+        if engine is None and xw is not None:
+            engine = 'xlwings'
 
         if engine == 'xlwings':
             from .excel import open_excel
@@ -9249,19 +9377,32 @@ class LArray(object):
             else:
                 sheet = wb.sheets.add(sheet_name, after=wb.sheets[-1])
 
+            # save attributes
+            cell = self.attrs.to_excel_xw(sheet, position)
+            # save array
             options = dict(header=header, index=header, transpose=transpose)
-            sheet[position].options(**options).value = df
+            cell.options(**options).value = df
             # TODO: implement transpose via/in dump
             # sheet[position] = self.dump(header=header, transpose=transpose)
             if close:
                 wb.save()
                 wb.close()
         else:
+            # XXX : Up to know (06/03/2017), using Pandas ExcelWriter and save
+            # method always override the whole Excel file.
             if sheet_name is None:
                 sheet_name = 'Sheet1'
+            if isinstance(filepath, pd.ExcelWriter):
+                writer = filepath
+            else:
+                writer = pd.ExcelWriter(filepath, engine=engine)
+            self.attrs.to_excel(writer, sheet_name, engine)
+            startrow = len(self.attrs) + 2 if len(self.attrs) else 0
             # TODO: implement position in this case
             # startrow, startcol
-            df.to_excel(filepath, sheet_name, *args, engine=engine, **kwargs)
+            df.to_excel(writer, sheet_name, *args, startrow=startrow, engine=engine, **kwargs)
+            if not isinstance(filepath, pd.ExcelWriter):
+                writer.save()
 
     def to_clipboard(self, *args, **kwargs):
         """Sends the content of the array to clipboard.
@@ -9661,11 +9802,11 @@ class LArray(object):
             self.axes = axes
             return self
         else:
-            return LArray(self.data, axes)
+            return LArray(self.data, axes, attributes=self._attrs)
 
     def astype(self, dtype, order='K', casting='unsafe', subok=True, copy=True):
         return LArray(self.data.astype(dtype, order, casting, subok, copy),
-                      self.axes)
+                      self.axes, attributes=self.attrs)
     astype.__doc__ = np.ndarray.astype.__doc__
 
     def shift(self, axis, n=1):
@@ -10017,8 +10158,11 @@ def cartesian_product_df(df, sort_rows=False, sort_columns=False, **kwargs):
     return df.reindex(new_index, columns, **kwargs), labels
 
 
-def df_aslarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header=True, **kwargs):
+def df_aslarray(df, sort_rows=False, sort_columns=False, raw=False,
+                parse_header=True, attributes=None, **kwargs):
     # the dataframe was read without index at all (ie 2D dataframe), irrespective of the actual data dimensionality
+    title = kwargs.pop('title', '')
+    description = kwargs.pop('description', '')
     if raw:
         columns = df.columns.values.tolist()
         try:
@@ -10073,7 +10217,7 @@ def df_aslarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header
 
     axes = [Axis(labels, name) for labels, name in zip(axes_labels, axes_names)]
     data = df.values.reshape([len(axis) for axis in axes])
-    return LArray(data, axes)
+    return LArray(data, axes, title=title, description=description, attributes=attributes)
 
 
 def from_lists(data, nb_index=None, index_col=None):
@@ -10240,7 +10384,7 @@ def read_csv(filepath_or_buffer, nb_index=None, index_col=None, sep=',', headers
         Defaults to False.
     dialect : 'classic' | 'larray' | 'liam2', optional
         Name of dialect. Defaults to 'larray'.
-    **kwargs
+    \**kwargs
 
     Returns
     -------
@@ -10248,7 +10392,7 @@ def read_csv(filepath_or_buffer, nb_index=None, index_col=None, sep=',', headers
 
     Examples
     --------
-    >>> from .tests.test_la import abspath
+    >>> from larray.tests.test_la import abspath
     >>> fpath = abspath('test.csv')
     >>> a = ndrange('nat=BE,FO;sex=M,F')
 
@@ -10267,7 +10411,27 @@ def read_csv(filepath_or_buffer, nb_index=None, index_col=None, sep=',', headers
     nat\\{1}  M  F
          BE  0  1
          FO  2  3
+    >>> a = ndrange('nat=BE,FO;sex=M,F')
+    >>> a.attrs.title = 'to_csv example'
+    >>> a.attrs.creation_date = datetime.datetime(2017, 1, 1)
+    >>> a.attrs.nb_data = 4
+    >>> a.to_csv(fpath)
+    >>> b = read_csv(fpath)
+    >>> b
+    nat\\sex  M  F
+         BE  0  1
+         FO  2  3
+    >>> b.info
+    title: to_csv example
+    creation_date: 2017-01-01T00:00:00.000000000
+    nb_data: 4
+    2 x 2
+     nat [2]: 'BE' 'FO'
+     sex [2]: 'M' 'F'
     """
+    attributes = Attributes.from_csv(filepath_or_buffer, sep)
+
+    kwargs['comment'] = '#'
     if dialect == 'liam2':
         # read axes names. This needs to be done separately instead of reading the whole file with Pandas then
         # manipulating the dataframe because the header line must be ignored for the column types to be inferred
@@ -10283,7 +10447,6 @@ def read_csv(filepath_or_buffer, nb_index=None, index_col=None, sep=',', headers
             nb_index = len(axes_names) - 1
         # use the second data line for column headers (excludes comments and blank lines before counting)
         kwargs['header'] = 1
-        kwargs['comment'] = '#'
 
     if nb_index is not None and index_col is not None:
         raise ValueError("cannot specify both nb_index and index_col")
@@ -10311,7 +10474,8 @@ def read_csv(filepath_or_buffer, nb_index=None, index_col=None, sep=',', headers
         df.index.names = combined_axes_names.split(headersep)
         raw = False
 
-    return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns, fill_value=na, raw=raw)
+    return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns,
+                       fill_value=na, raw=raw, attributes=attributes)
 
 
 def read_tsv(filepath_or_buffer, **kwargs):
@@ -10327,7 +10491,7 @@ def read_eurostat(filepath_or_buffer, **kwargs):
     ----------
     filepath_or_buffer : str or any file-like object
         Path where the tsv file has to be read or a file handle.
-    kwargs
+    \**kwargs
         Arbitrary keyword arguments are passed through to read_csv.
 
     Returns
@@ -10346,17 +10510,32 @@ def read_hdf(filepath_or_buffer, key, na=np.nan, sort_rows=False, sort_columns=F
         Path and name where the HDF5 file is stored or a HDFStore object.
     key : str
         Name of the array.
+    \**kwargs
 
     Returns
     -------
     LArray
+
+    Examples
+    --------
+    >>> read_hdf('test.h5', 'a') # doctest: +SKIP
     """
-    df = pd.read_hdf(filepath_or_buffer, key, **kwargs)
-    return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns, fill_value=na, parse_header=False)
+    if isinstance(filepath_or_buffer, basestring):
+        store = pd.HDFStore(filepath_or_buffer, mode='r')
+    else:
+        store = filepath_or_buffer
+    df = store.get(key)
+    attributes = Attributes.from_hdf(store, key)
+    if isinstance(filepath_or_buffer, basestring):
+        store.close()
+    return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns,
+                       fill_value=na, parse_header=False, attributes=attributes)
+#    df = pd.read_hdf(filepath_or_buffer, key, **kwargs)
+#    return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns, fill_value=na, parse_header=False)
 
 
-def read_excel(filepath, sheetname=0, nb_index=None, index_col=None, na=np.nan, sort_rows=False, sort_columns=False,
-               engine=None, **kwargs):
+def read_excel(filepath, sheetname=0, nb_index=None, index_col=None, na=np.nan,
+               sort_rows=False, sort_columns=False, engine=None, **kwargs):
     """
     Reads excel file from sheet name and returns an LArray with the contents
 
@@ -10383,8 +10562,15 @@ def read_excel(filepath, sheetname=0, nb_index=None, index_col=None, na=np.nan, 
     engine : {'xlrd', 'xlwings'}, optional
         Engine to use to read the Excel file. If None (default), it will use 'xlwings' by default if the module is
         installed and relies on Pandas default reader otherwise.
-    **kwargs
+    \**kwargs
+
+    Examples
+    --------
+    >>> # read array from excel sheet
+    >>> read_excel('test.xlsx', 'Sheet1') # doctest: +SKIP
     """
+    attributes = Attributes()
+
     if engine is None:
         engine = 'xlwings' if xw is not None else None
 
@@ -10401,10 +10587,26 @@ def read_excel(filepath, sheetname=0, nb_index=None, index_col=None, na=np.nan, 
                             .format(list(kwargs.keys())[0]))
         from .excel import open_excel
         with open_excel(filepath) as wb:
-            return wb[sheetname].load(index_col=index_col)
+            sheet = wb[sheetname]
+            attributes = Attributes.from_excel_xw(sheet)
+            start_row = len(attributes) + 2 if len(attributes) else 0
+            res = sheet[start_row:].load(index_col=index_col)
+            res.attrs = attributes
+            return res
     else:
-        df = pd.read_excel(filepath, sheetname, index_col=index_col, engine=engine, **kwargs)
-        return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns, raw=index_col is None, fill_value=na)
+        import xlrd
+        book = xlrd.open_workbook(filepath)
+        if isinstance(sheetname, basestring):
+            sheet = book.sheet_by_name(sheetname)
+        else:
+            sheet = book.sheet_by_index(sheetname)
+        attributes = Attributes.from_excel(sheet)
+        skiprows = kwargs.pop('skiprows', 0)
+        if len(attributes):
+            skiprows += len(attributes) + 2
+        df = pd.read_excel(filepath, sheetname, index_col=index_col, skiprows=skiprows, engine=engine, **kwargs)
+        return df_aslarray(df, sort_rows=sort_rows, sort_columns=sort_columns, raw=index_col is None,
+                           fill_value=na, attributes=attributes)
 
 
 def read_sas(filepath, nb_index=None, index_col=None, na=np.nan, sort_rows=False, sort_columns=False, **kwargs):
@@ -10436,21 +10638,29 @@ def _check_axes_argument(func):
 
 
 @_check_axes_argument
-def zeros(axes, title='', dtype=float, order='C'):
+def zeros(axes, dtype=float, order='C', attributes=None, **kwargs):
     """Returns an array with the specified axes and filled with zeros.
 
     Parameters
     ----------
     axes : int, tuple of int, Axis or tuple/list/AxisCollection of Axis
         Collection of axes or a shape.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Desired data-type for the array, e.g., `numpy.int8`.
         Default is `numpy.float64`.
     order : {'C', 'F'}, optional
         Whether to store multidimensional data in C- (default) or
         Fortran-contiguous (row- or column-wise) order in memory.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10475,18 +10685,16 @@ def zeros(axes, title='', dtype=float, order='C'):
          FO  0.0  0.0
     """
     axes = AxisCollection(axes)
-    return LArray(np.zeros(axes.shape, dtype, order), axes, title)
+    return LArray(np.zeros(axes.shape, dtype, order), axes, attributes=attributes, **kwargs)
 
 
-def zeros_like(array, title='', dtype=None, order='K'):
+def zeros_like(array, dtype=None, order='K', attributes=None, **kwargs):
     """Returns an array with the same axes as array and filled with zeros.
 
     Parameters
     ----------
     array : LArray
          Input array.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Overrides the data type of the result.
     order : {'C', 'F', 'A', or 'K'}, optional
@@ -10494,6 +10702,16 @@ def zeros_like(array, title='', dtype=None, order='K'):
         'F' means F-order, 'A' means 'F' if `a` is Fortran contiguous,
         'C' otherwise. 'K' (default) means match the layout of `a` as closely
         as possible.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10507,27 +10725,33 @@ def zeros_like(array, title='', dtype=None, order='K'):
             0  0  0  0
             1  0  0  0
     """
-    if not title:
-        title = array.title
-    return LArray(np.zeros_like(array, dtype, order), array.axes, title)
+    return LArray(np.zeros_like(array, dtype, order), array.axes, attributes=attributes, **kwargs)
 
 
 @_check_axes_argument
-def ones(axes, title='', dtype=float, order='C'):
+def ones(axes, dtype=float, order='C', attributes=None, **kwargs):
     """Returns an array with the specified axes and filled with ones.
 
     Parameters
     ----------
     axes : int, tuple of int, Axis or tuple/list/AxisCollection of Axis
         Collection of axes or a shape.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Desired data-type for the array, e.g., `numpy.int8`.  Default is
         `numpy.float64`.
     order : {'C', 'F'}, optional
         Whether to store multidimensional data in C- (default) or
         Fortran-contiguous (row- or column-wise) order in memory.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10543,18 +10767,16 @@ def ones(axes, title='', dtype=float, order='C'):
          FO  1.0  1.0
     """
     axes = AxisCollection(axes)
-    return LArray(np.ones(axes.shape, dtype, order), axes, title)
+    return LArray(np.ones(axes.shape, dtype, order), axes, attributes=attributes, **kwargs)
 
 
-def ones_like(array, title='', dtype=None, order='K'):
+def ones_like(array, dtype=None, order='K', attributes=None, **kwargs):
     """Returns an array with the same axes as array and filled with ones.
 
     Parameters
     ----------
     array : LArray
         Input array.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Overrides the data type of the result.
     order : {'C', 'F', 'A', or 'K'}, optional
@@ -10562,6 +10784,16 @@ def ones_like(array, title='', dtype=None, order='K'):
         'F' means F-order, 'A' means 'F' if `a` is Fortran contiguous,
         'C' otherwise. 'K' (default) means match the layout of `a` as closely
         as possible.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10575,28 +10807,33 @@ def ones_like(array, title='', dtype=None, order='K'):
             0  1  1  1
             1  1  1  1
     """
-    axes = array.axes
-    if not title:
-        title = array.title
-    return LArray(np.ones_like(array, dtype, order), axes, title)
+    return LArray(np.ones_like(array, dtype, order), array.axes, attributes=attributes, **kwargs)
 
 
 @_check_axes_argument
-def empty(axes, title='', dtype=float, order='C'):
+def empty(axes, dtype=float, order='C', attributes=None, **kwargs):
     """Returns an array with the specified axes and uninitialized (arbitrary) data.
 
     Parameters
     ----------
     axes : int, tuple of int, Axis or tuple/list/AxisCollection of Axis
         Collection of axes or a shape.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Desired data-type for the array, e.g., `numpy.int8`.  Default is
         `numpy.float64`.
     order : {'C', 'F'}, optional
         Whether to store multidimensional data in C- (default) or
         Fortran-contiguous (row- or column-wise) order in memory.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10612,18 +10849,16 @@ def empty(axes, title='', dtype=float, order='C'):
          FO                 0.0  6.07684618082e-31
     """
     axes = AxisCollection(axes)
-    return LArray(np.empty(axes.shape, dtype, order), axes, title)
+    return LArray(np.empty(axes.shape, dtype, order), axes, attributes=attributes, **kwargs)
 
 
-def empty_like(array, title='', dtype=None, order='K'):
+def empty_like(array, dtype=None, order='K', attributes=None, **kwargs):
     """Returns an array with the same axes as array and uninitialized (arbitrary) data.
 
     Parameters
     ----------
     array : LArray
         Input array.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Overrides the data type of the result. Defaults to the data type of array.
     order : {'C', 'F', 'A', or 'K'}, optional
@@ -10631,6 +10866,16 @@ def empty_like(array, title='', dtype=None, order='K'):
         'F' means F-order, 'A' means 'F' if `a` is Fortran contiguous,
         'C' otherwise. 'K' (default) means match the layout of `a` as closely
         as possible.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10645,15 +10890,13 @@ def empty_like(array, title='', dtype=None, order='K'):
       1  1.06099789568e-313  1.48539705397e-313
       2  1.90979621226e-313  2.33419537056e-313
     """
-    if not title:
-        title = array.title
     # cannot use empty() because order == 'K' is not understood
-    return LArray(np.empty_like(array.data, dtype, order), array.axes, title)
+    return LArray(np.empty_like(array.data, dtype, order), array.axes, attributes=attributes, **kwargs)
 
 
 # We cannot use @_check_axes_argument here because an integer fill_value would be considered as an error
-def full(axes, fill_value, title='', dtype=None, order='C'):
-    """Returns an array with the specified axes and filled with fill_value.
+def full(axes, fill_value, dtype=None, order='C', attributes=None, **kwargs):
+    """Returns an array with the specified axes and filled with `fill_value`.
 
     Parameters
     ----------
@@ -10661,13 +10904,21 @@ def full(axes, fill_value, title='', dtype=None, order='C'):
         Collection of axes or a shape.
     fill_value : scalar or LArray
         Value to fill the array
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Desired data-type for the array. Default is the data type of fill_value.
     order : {'C', 'F'}, optional
         Whether to store multidimensional data in C- (default) or
         Fortran-contiguous (row- or column-wise) order in memory.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10695,13 +10946,13 @@ def full(axes, fill_value, title='', dtype=None, order='C'):
                          "you must pass them as a list (using []) or tuple (using()).")
     if dtype is None:
         dtype = np.asarray(fill_value).dtype
-    res = empty(axes, title, dtype, order)
+    res = empty(axes, dtype, order, attributes=attributes, **kwargs)
     res[:] = fill_value
     return res
 
 
-def full_like(array, fill_value, title='', dtype=None, order='K'):
-    """Returns an array with the same axes and type as input array and filled with fill_value.
+def full_like(array, fill_value, dtype=None, order='K', attributes=None, **kwargs):
+    """Returns an array with the same axes and type as input array and filled with `fill_value`.
 
     Parameters
     ----------
@@ -10709,8 +10960,6 @@ def full_like(array, fill_value, title='', dtype=None, order='K'):
         Input array.
     fill_value : scalar or LArray
         Value to fill the array
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Overrides the data type of the result. Defaults to the data type of array.
     order : {'C', 'F', 'A', or 'K'}, optional
@@ -10718,6 +10967,16 @@ def full_like(array, fill_value, title='', dtype=None, order='K'):
         'F' means F-order, 'A' means 'F' if `a` is Fortran contiguous,
         'C' otherwise. 'K' (default) means match the layout of `a` as closely
         as possible.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -10731,11 +10990,9 @@ def full_like(array, fill_value, title='', dtype=None, order='K'):
             0  5  5  5
             1  5  5  5
     """
-    if not title:
-        title = array.title
     # cannot use full() because order == 'K' is not understood
     # cannot use np.full_like() because it would not handle LArray fill_value
-    res = empty_like(array, title, dtype, order)
+    res = empty_like(array, dtype, order, attributes=attributes, **kwargs)
     res[:] = fill_value
     return res
 
@@ -10744,7 +11001,8 @@ def full_like(array, fill_value, title='', dtype=None, order='K'):
 #      ndrange (or rename this one to ndrange)? ndrange is only ever used to
 #      create test data (except for 1d)
 # see https://github.com/pydata/pandas/issues/4567
-def create_sequential(axis, initial=0, inc=None, mult=1, func=None, axes=None, title=''):
+def create_sequential(axis, initial=0, inc=None, mult=1, func=None,
+                      axes=None, attributes=None, **kwargs):
     """
     Creates an array by sequentially applying modifications to the array along
     axis.
@@ -10772,8 +11030,16 @@ def create_sequential(axis, initial=0, inc=None, mult=1, func=None, axes=None, t
     axes : int, tuple of int or tuple/list/AxisCollection of Axis, optional
         Axes of the result. Defaults to the union of axes present in other
         arguments.
-    title : str, optional
-        Title.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Examples
     --------
@@ -10857,7 +11123,7 @@ def create_sequential(axis, initial=0, inc=None, mult=1, func=None, axes=None, t
         axes = AxisCollection(axes)
         axis = axes[axis]
     res_dtype = np.dtype(common_type((initial, inc, mult)))
-    res = empty(axes, title=title, dtype=res_dtype)
+    res = empty(axes, dtype=res_dtype, attributes=attributes, **kwargs)
     res[axis.i[0]] = initial
     def has_axis(a, axis):
         return isinstance(a, LArray) and axis in a.axes
@@ -10910,7 +11176,7 @@ def create_sequential(axis, initial=0, inc=None, mult=1, func=None, axes=None, t
         #    wait until someone requests it.
         def array_or_full(a, axis, initial):
             dt = common_type((a, initial))
-            r = empty((get_axes(a) - axis) | axis, title=title, dtype=dt)
+            r = empty((get_axes(a) - axis) | axis, dtype=dt, attributes=attributes, **kwargs)
             r[axis.i[0]] = initial
             if isinstance(a, LArray) and axis in a.axes:
                 # not using axis.i[1:] because a could have less ticks
@@ -10951,8 +11217,8 @@ def create_sequential(axis, initial=0, inc=None, mult=1, func=None, axes=None, t
 
 
 @_check_axes_argument
-def ndrange(axes, start=0, title='', dtype=int):
-    """Returns an array with the specified axes and filled with increasing int.
+def ndrange(axes, start=0, dtype=int, attributes=None, **kwargs):
+    """Returns an array with the specified axes and filled with increasing integers.
 
     Parameters
     ----------
@@ -10967,10 +11233,19 @@ def ndrange(axes, start=0, title='', dtype=int):
                set the name of the axis. eg. "a,b,c" or "sex=F,M"
         * (labels, name) pair: name and labels of axis
     start : number, optional
-    title : str, optional
-        Title.
+        Value of first item.
     dtype : dtype, optional
         The type of the output array.  Defaults to int.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -11020,11 +11295,11 @@ def ndrange(axes, start=0, title='', dtype=int):
     #  > 1, I cannot think of anything nice.
     axes = AxisCollection(axes)
     data = np.arange(start, start + axes.size, dtype=dtype)
-    return LArray(data.reshape(axes.shape), axes, title)
+    return LArray(data.reshape(axes.shape), axes, attributes=attributes, **kwargs)
 
 
 @_check_axes_argument
-def ndtest(shape, start=0, label_start=0, title='', dtype=int):
+def ndtest(shape, start=0, label_start=0, dtype=int, attributes=None, **kwargs):
     """Returns test array with given shape.
 
     Axes are named by single letters starting from 'a'. Axes labels are
@@ -11041,10 +11316,18 @@ def ndtest(shape, start=0, label_start=0, title='', dtype=int):
     label_start : int, optional
         Label position for each axis is `label_start + position`.
         `label_start` defaults to 0.
-    title : str, optional
-        Title.
     dtype : type or np.dtype, optional
         Type of resulting array.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -11064,7 +11347,7 @@ def ndtest(shape, start=0, label_start=0, title='', dtype=int):
      a1   0   1   2
      a2   3   4   5
     """
-    a = ndrange(shape, start=start, dtype=dtype, title=title)
+    a = ndrange(shape, start=start, dtype=dtype)
     # TODO: move this to a class method on AxisCollection
     assert a.ndim <= 26
     axes_names = [chr(ord('a') + i) for i in range(a.ndim)]
@@ -11072,7 +11355,7 @@ def ndtest(shape, start=0, label_start=0, title='', dtype=int):
                     for length in a.shape]
     new_axes = [Axis([name + str(i) for i in label_range], name)
                 for name, label_range in zip(axes_names, label_ranges)]
-    return LArray(a.data, new_axes)
+    return LArray(a.data, new_axes, attributes=attributes, **kwargs)
 
 
 def kth_diag_indices(shape, k):
@@ -11089,7 +11372,7 @@ def kth_diag_indices(shape, k):
         return indices
 
 
-def diag(a, k=0, axes=(0, 1), ndim=2, split=True):
+def diag(a, k=0, axes=(0, 1), ndim=2, split=True, attributes=None, **kwargs):
     """
     Extracts a diagonal or construct a diagonal array.
 
@@ -11110,6 +11393,16 @@ def diag(a, k=0, axes=(0, 1), ndim=2, split=True):
         an array without axes names/labels. Defaults to 2.
     split : bool, optional
         Whether or not to try to split the axis name and labels
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -11153,13 +11446,14 @@ def diag(a, k=0, axes=(0, 1), ndim=2, split=True):
             axes = [Axis(labels, name) for labels, name in zip(axes_labels, axes_names)]
         else:
             axes = [axis] + [axis.copy() for _ in range(ndim - 1)]
-        res = zeros(axes, dtype=a.dtype)
+        res = zeros(axes, dtype=a.dtype, attributes=attributes, **kwargs)
         diag_indices = kth_diag_indices(res.shape, k)
         res.ipoints[diag_indices] = a
         return res
     else:
         if k != 0 and len(axes) > 2:
             raise NotImplementedError("k != 0 and len(axes) > 2")
+        a = LArray(a.data, a.axes, attributes=attributes, **kwargs)
         if axes is None:
             axes = a.axes
         else:
@@ -11171,15 +11465,23 @@ def diag(a, k=0, axes=(0, 1), ndim=2, split=True):
 
 
 @_check_axes_argument
-def labels_array(axes, title=''):
+def labels_array(axes, attributes=None, **kwargs):
     """Returns an array with specified axes and the combination of
     corresponding labels as values.
 
     Parameters
     ----------
     axes : Axis or collection of Axis
-    title : str, optional
-        Title.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -11216,10 +11518,10 @@ def labels_array(axes, title=''):
     else:
         res_axes = axes
         res_data = axes[0].labels
-    return LArray(res_data, res_axes, title)
+    return LArray(res_data, res_axes, attributes=None, **kwargs)
 
 
-def identity(axis):
+def identity(axis, **kwargs):
     raise NotImplementedError("identity(axis) is deprecated. In most cases, "
                               "you can now use the axis directly. For example, "
                               "'identity(age) < 10' can be replaced by "
@@ -11227,7 +11529,7 @@ def identity(axis):
                               "labels_array(axis) instead.")
 
 
-def eye(rows, columns=None, k=0, title='', dtype=None):
+def eye(rows, columns=None, k=0, dtype=None, attributes=None, **kwargs):
     """Returns a 2-D array with ones on the diagonal and zeros elsewhere.
 
     Parameters
@@ -11240,10 +11542,18 @@ def eye(rows, columns=None, k=0, title='', dtype=None):
         Index of the diagonal: 0 (the default) refers to the main diagonal, a
         positive value refers to an upper diagonal, and a negative value to a
         lower diagonal.
-    title : str, optional
-        Title.
     dtype : data-type, optional
         Data-type of the returned array. Defaults to float.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -11273,7 +11583,7 @@ def eye(rows, columns=None, k=0, title='', dtype=None):
     axes = AxisCollection([rows, columns])
     shape = axes.shape
     data = np.eye(shape[0], shape[1], k, dtype)
-    return LArray(data, axes, title)
+    return LArray(data, axes, attributes=None, **kwargs)
 
 
 # XXX: we could change the syntax to use *args
@@ -11343,7 +11653,7 @@ def eye(rows, columns=None, k=0, title='', dtype=None):
 #       ('FR', 'M'): 2, ('FR', 'F'): 3,
 #       ('DE', 'M'): 4, ('DE', 'F'): 5})
 
-def stack(arrays, axis=None, title=''):
+def stack(arrays, axis=None, attributes=None, **kwargs):
     """
     Combines several arrays along an axis.
 
@@ -11355,8 +11665,16 @@ def stack(arrays, axis=None, title=''):
         which the mapping does not provide.
     axis : str or Axis, optional
         Axis to create. If None, defaults to a range() axis.
-    title : str, optional
-        Title.
+    attributes : OrderedDict or dict, optional
+        Attributes (title, description, author, creation_date, ...)
+        associated with the array. Keys must be strings.
+        Values must be of type string, int, float, date, time or datetime.
+    \**kwargs :
+
+        * title : str, optional
+            Title of array.
+        * description : str, optional
+            Short description of the array.
 
     Returns
     -------
@@ -11448,7 +11766,7 @@ def stack(arrays, axis=None, title=''):
 
     result_axes = AxisCollection.union(*[get_axes(v) for v in values])
     result_axes.append(axis)
-    result = empty(result_axes, title=title, dtype=common_type(values))
+    result = empty(result_axes, dtype=common_type(values), attributes=None, **kwargs)
     for k, v in zip(axis, values):
         result[k] = v
     return result

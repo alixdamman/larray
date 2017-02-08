@@ -5,6 +5,9 @@ import sys
 from unittest import TestCase
 
 import pytest
+
+from collections import OrderedDict
+import datetime as dt
 import numpy as np
 import pandas as pd
 
@@ -18,6 +21,7 @@ from larray import (LArray, Axis, AxisCollection, LGroup, LSet, PGroup, union,
                     zeros, zeros_like, ndrange, ndtest, from_lists,
                     ones, eye, diag, clip, exp, where, x, mean, isnan, round, stack, from_string)
 from larray.core import _to_ticks, _to_key, df_aslarray
+from larray.utils import Attributes
 
 
 TESTDATADIR = os.path.dirname(__file__)
@@ -1095,7 +1099,13 @@ class TestAxisCollection(TestCase):
 
 class TestLArray(TestCase):
     def setUp(self):
-        self.title = 'test array'
+        self.attrs = Attributes()
+        self.attrs.title = 'test array'
+        self.attrs.description = 'Array used for testing'
+        self.attrs.author = 'John Cleese'
+        self.attrs.location = 'Ministry of Silly Walks'
+        self.attrs.date = dt.datetime(1970, 1, 1)
+
         self.lipro = Axis(['P%02d' % i for i in range(1, 16)], 'lipro')
         self.age = Axis('age=0..115')
         self.sex = Axis('sex=M,F')
@@ -1122,18 +1132,29 @@ class TestLArray(TestCase):
                                                  .astype(float)
         self.larray = LArray(self.array,
                              axes=(self.age, self.geo, self.sex, self.lipro),
-                             title=self.title)
+                             attributes=self.attrs)
 
         self.small_title = 'small test array'
+        self.small_description = 'Small array used for testing'
         self.small_data = np.arange(30).reshape(2, 15)
         self.small = LArray(self.small_data, axes=(self.sex, self.lipro),
-                            title=self.small_title)
+                            attributes=self.attrs)
 
     def test_getattr(self):
+        # Axes
         self.assertEqual(type(self.larray.geo), Axis)
         self.assertIs(self.larray.geo, self.geo)
         with self.assertRaises(AttributeError):
             self.larray.geom
+
+    def test_attrs(self):
+        self.assertEqual(self.larray.attrs, self.attrs)
+        self.assertEqual(self.larray.attrs.date, self.attrs.date)
+        self.larray.attrs.date += dt.timedelta(days=50)
+        self.assertEqual(self.larray.attrs.date, self.attrs.date + dt.timedelta(days=50))
+        self.larray.attrs.city = 'London'
+        self.assertEqual(self.larray.attrs.city, 'London')
+        del self.larray.attrs.city
 
     def test_zeros(self):
         la = zeros((self.geo, self.age))
@@ -1182,14 +1203,14 @@ class TestLArray(TestCase):
         self.assertEqual(new.axes.names, ['age', 'geo', 'gender', 'lipro'])
 
     def test_info(self):
+        la = LArray(self.larray.data, self.larray.axes)
         expected = """\
-test array
 116 x 44 x 2 x 15
  age [116]: 0 1 2 ... 113 114 115
  geo [44]: 'A11' 'A12' 'A13' ... 'A92' 'A93' 'A21'
  sex [2]: 'M' 'F'
  lipro [15]: 'P01' 'P02' 'P03' ... 'P13' 'P14' 'P15'"""
-        self.assertEqual(self.larray.info, expected)
+        self.assertEqual(la.info, expected)
 
     def test_str(self):
         lipro = self.lipro
@@ -3232,14 +3253,10 @@ age    0       1       2       3       4       5       6       7        8  ...  
         lipro2 = Axis([l.replace('P', 'Q') for l in self.lipro.labels], 'lipro2')
         sex2 = Axis(['Man', 'Woman'], 'sex2')
 
-        la = LArray(self.small_data, axes=(self.sex, lipro2),
-                    title=self.small_title)
+        la = LArray(self.small_data, axes=(self.sex, lipro2))
         # replace one axis
         la2 = self.small.set_axes(x.lipro, lipro2)
         assert_array_equal(la, la2)
-        self.assertEqual(la.title, la2.title, "title of array returned by "
-                                              "replace_axes should be the same as the original one. "
-                                              "We got '{}' instead of '{}'".format(la2.title, la.title))
 
         la = LArray(self.small_data, axes=(sex2, lipro2),
                     title=self.small_title)
