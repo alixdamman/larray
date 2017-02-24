@@ -78,8 +78,8 @@ import sys
 import os
 
 from qtpy.QtWidgets import (QApplication, QHBoxLayout, QTableView, QItemDelegate,
-                            QListWidget, QSplitter, QListWidgetItem,
-                            QLineEdit, QCheckBox, QGridLayout,
+                            QListWidget, QSplitter, QListWidgetItem, QTreeWidget,
+                            QTreeWidgetItem, QLineEdit, QCheckBox, QGridLayout,
                             QDialog, QDialogButtonBox, QPushButton,
                             QMessageBox, QMenu,
                             QLabel, QSpinBox, QWidget, QVBoxLayout,
@@ -1950,7 +1950,7 @@ class MappingEditor(QDialog):
         layout = QVBoxLayout()
         self.setLayout(layout)
 
-        self._listwidget = QListWidget(self)
+        self._listwidget = QListWidget()
         arrays = [k for k, v in self.data.items() if self._display_in_grid(k, v)]
         self.add_list_items(arrays)
         self._listwidget.currentItemChanged.connect(self.on_item_changed)
@@ -2232,9 +2232,394 @@ class MappingEditor(QDialog):
 
     def get_value(self):
         """Return modified array -- this is *not* a copy"""
-        # It is import to avoid accessing Qt C++ object as it has probably
+        # It is important to avoid accessing Qt C++ object as it has probably
         # already been destroyed, due to the Qt.WA_DeleteOnClose attribute
         return self.data
+
+
+class SessionsEditor(QDialog):
+    """Session Editor Dialog"""
+
+    def __init__(self, parent=None):
+        QDialog.__init__(self, parent)
+
+        # Destroying the C++ object right after closing the dialog box,
+        # otherwise it may be garbage-collected in another QThread
+        # (e.g. the editor's analysis thread in Spyder), thus leading to
+        # a segmentation fault on UNIX or an application crash on Windows
+        self.setAttribute(Qt.WA_DeleteOnClose)
+
+        self.sessions = None
+        self._treewidget = None
+        self.arraywidget = None
+        self.eval_box = None
+        self.expressions = {}
+        self.kernel = None
+
+    def setup_and_check(self, sessions, title='', readonly=False,
+                        minvalue=None, maxvalue=None):
+        """
+        Setup MappingEditor:
+        return False if data is not supported, True otherwise
+        """
+        if isinstance(sessions, la.Session):
+            self.sessions = OrderedDict({'Session 0': sessions})
+        elif isinstance(sessions, (list, tuple)) and \
+                all([isinstance(session, la.Session) for session in sessions]):
+            self.sessions = OrderedDict()
+            for i, session in enumerate(sessions):
+                self.sessions['Session {}'.format(i)] = session
+        elif isinstance(sessions, dict) and \
+                all([isinstance(session, la.Session) for session in sessions.values]):
+            self.sessions = OrderedDict(sessions)
+        else:
+            raise TypeError("sessions must be a Session object or any iterables of Session objects")
+
+        icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
+        if icon is not None:
+            self.setWindowIcon(icon)
+
+        if not title:
+            title = _("Session viewer") if readonly else _("Session editor")
+        if readonly:
+            title += ' (' + _('read only') + ')'
+        self.setWindowTitle(title)
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self._treewidget = QTreeWidget(self)
+        self._treewidget.header().close()
+        # columns = labels displayed for each item (name, size, dim)
+        # here: 'session/array', 'dim', 'id'
+        self._treewidget.setColumnCount(3)
+        self._key_column, self._id_column = 0, 2
+        self._treewidget.hideColumn(self._id_column)
+        for key_session, session in self.sessions.items():
+            self._treewidget.addTopLevelItem(QTreeWidgetItem([key_session, '', key_session]))
+            keys_arrays = [k for k, v in session.items() if self._display_in_grid(k, v)]
+            self.add_array_items(key_session, keys_arrays)
+        self._treewidget.currentItemChanged.connect(self.on_item_changed)
+        self._treewidget.setMinimumWidth(45)
+
+        # initialize arraywidget
+        nb_arrays = sum([len(session) for session in self.sessions.values()])
+        start_array = la.zeros(1) if nb_arrays else la.zeros(0)
+        self.arraywidget = ArrayEditorWidget(self, start_array, readonly)
+
+        if qtconsole_available:
+            # Create an in-process kernel
+            kernel_manager = QtInProcessKernelManager()
+            kernel_manager.start_kernel(show_banner=False)
+            kernel = kernel_manager.kernel
+
+            kernel.shell.run_cell('from larray import *')
+            # push sessions
+            kernel.shell.push(dict(self.sessions.items()))
+            text_formatter = kernel.shell.display_formatter.formatters['text/plain']
+
+            def void_formatter(array, *args, **kwargs):
+                return ''
+
+            for type_ in DISPLAY_IN_GRID:
+                text_formatter.for_type(type_, void_formatter)
+
+            self.kernel = kernel
+
+            kernel_client = kernel_manager.client()
+            kernel_client.start_channels()
+
+            ipython_widget = RichJupyterWidget()
+            ipython_widget.kernel_manager = kernel_manager
+            ipython_widget.kernel_client = kernel_client
+            ipython_widget.executed.connect(self.ipython_cell_executed)
+            ipython_widget._display_banner = False
+
+            self.eval_box = ipython_widget
+            self.eval_box.setMinimumHeight(20)
+
+            arraywidget = self.arraywidget
+            if not readonly:
+                # Buttons configuration
+                btn_layout = QHBoxLayout()
+                btn_layout.addStretch()
+
+                bbox = QDialogButtonBox(QDialogButtonBox.Apply | QDialogButtonBox.Discard)
+
+                apply_btn = bbox.button(QDialogButtonBox.Apply)
+                apply_btn.clicked.connect(self.apply_changes)
+
+                discard_btn = bbox.button(QDialogButtonBox.Discard)
+                discard_btn.clicked.connect(self.discard_changes)
+
+                btn_layout.addWidget(bbox)
+
+                arraywidget_layout = QVBoxLayout()
+                arraywidget_layout.addWidget(self.arraywidget)
+                arraywidget_layout.addLayout(btn_layout)
+
+                # you cant add a layout directly in a splitter, so we have to wrap it in a widget
+                arraywidget = QWidget()
+                arraywidget.setLayout(arraywidget_layout)
+
+            right_panel_widget = QSplitter(Qt.Vertical)
+            right_panel_widget.addWidget(arraywidget)
+            right_panel_widget.addWidget(self.eval_box)
+            right_panel_widget.setSizes([90, 10])
+        else:
+            self.eval_box = QLineEdit()
+            self.eval_box.returnPressed.connect(self.line_edit_update)
+
+            right_panel_layout = QVBoxLayout()
+            right_panel_layout.addWidget(self.arraywidget)
+            right_panel_layout.addWidget(self.eval_box)
+
+            # you cant add a layout directly in a splitter, so we have to wrap
+            # it in a widget
+            right_panel_widget = QWidget()
+            right_panel_widget.setLayout(right_panel_layout)
+
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.addWidget(self._treewidget)
+        main_splitter.addWidget(right_panel_widget)
+        main_splitter.setSizes([10, 90])
+        main_splitter.setCollapsible(1, False)
+
+        layout.addWidget(main_splitter)
+
+        # the problem is that the qlineedit (when ipython not present) does
+        # not eat the enter key, so it gets handled by the buttons below
+        # and this closes the window.
+        # FIXME: not having the buttons is a bit radical but I am out of time
+        #        for this.
+        if qtconsole_available:
+            # Buttons configuration
+            btn_layout = QHBoxLayout()
+            btn_layout.addStretch()
+
+            buttons = QDialogButtonBox.Close
+            bbox = QDialogButtonBox(buttons)
+            bbox.rejected.connect(self.reject)
+            btn_layout.addWidget(bbox)
+            layout.addLayout(btn_layout)
+
+        # self._treewidget.setCurrentRow(0)
+
+        # set current item to first array of first session
+        first_session_item = self._treewidget.topLevelItem(0)
+        first_session = self.sessions[first_session_item.text(self._key_column)]
+        if len(first_session):
+            self._treewidget.setCurrentItem(first_session_item.child(0))
+
+        self.resize(800, 600)
+        self.setMinimumSize(400, 300)
+
+        # Make the dialog act as a window
+        self.setWindowFlags(Qt.Window)
+        return True
+
+    def _get_id_array(self, key_session, key_array):
+        return key_session + ',' + key_array
+
+    def _resizeColumnsToContents(self):
+        self._treewidget.resizeColumnToContents(0)
+        self._treewidget.resizeColumnToContents(1)
+
+    def add_array_items(self, key_session, keys_arrays):
+        session = self.sessions.get(key_session)
+        session_items = self._treewidget.findItems(key_session, Qt.MatchExactly)
+        assert len(session_items) == 1
+        session_item = session_items[0]
+        for key_array in keys_arrays:
+            array = session[key_array]
+            id = self._get_id_array(key_session, key_array)
+            dim = 'x'.join([str(len(axis)) for axis in array.axes])
+            array_item = QTreeWidgetItem(session_item, [key_array, dim, id])
+            if isinstance(array, la.LArray):
+                array_item.setToolTip(0, str(array.info))
+        self._resizeColumnsToContents()
+
+    def update_mapping_arrays(self, key_session, value):
+        # XXX: use ordered set so that the order is non-random if the underlying container is ordered?
+        session = self.sessions.get(key_session)
+        keys_before = set(session.keys())
+        keys_after = set(value.keys())
+
+        # deleted array keys
+        for key_array in keys_before - keys_after:
+            if self._display_in_grid(key_array, session[key_array]):
+                self.delete_array_item(key_session, key_array)
+            del session[key_array]
+
+        # contains both new and updated keys (but not deleted keys)
+        changed_keys = [k for k in keys_after if value[k] is not session.get(k)]
+        if changed_keys:
+            # update session
+            for key_array in changed_keys:
+                session[key_array] = value[key_array]
+
+            # add new keys which can be displayed
+            displayable_new_keys = [k for k in keys_after - keys_before if self._display_in_grid(k, value[k])]
+            self.add_array_items(key_session, displayable_new_keys)
+
+            displayable_changed_keys = [k for k in changed_keys if self._display_in_grid(k, value[k])]
+            if displayable_changed_keys:
+                # display only first result if there are more than one
+                to_display = displayable_changed_keys[0]
+
+                self.select_array_item(key_session, to_display)
+                return to_display
+            else:
+                return None
+        else:
+            return None
+
+    def delete_array_item(self, key_session, key_array):
+        session_items = self._treewidget.findItems(key_session, Qt.MatchExactly)
+        array_id = self._get_id_array(key_session, key_array)
+        deleted_items = self._treewidget.findItems(array_id, Qt.MatchExactly, self._id_column)
+        assert len(session_items) == 1 and len(deleted_items) == 1
+        session_item, deleted_item = session_items[0], deleted_items[0]
+        deleted_item_idx = session_item.indexOfChild(deleted_item)
+        session_item.takeChild(deleted_item_idx)
+        self._resizeColumnsToContents()
+
+    def select_array_item(self, key_session, key_array):
+        session = self.sessions[key_session]
+        session_items = self._treewidget.findItems(key_session, Qt.MatchExactly)
+        array_id = self._get_id_array(key_session, key_array)
+        changed_items = self._treewidget.findItems(array_id, Qt.MatchExactly, self._id_column)
+        assert len(session_items) == 1 and len(changed_items) == 1
+        prev_selected = self._treewidget.selectedItems()
+        assert len(prev_selected) <= 1
+        # if the currently selected item (value) need to be refreshed (e.g it was modified)
+        if prev_selected and prev_selected[0] == changed_items[0]:
+            # we need to update the array widget explicitly
+            self.set_widget_array(session[key_array], key_array)
+        else:
+            # for some reason, on_item_changed is not triggered when no item was selected
+            if not prev_selected:
+                self.set_widget_array(session[key_array], key_array)
+            self._treewidget.setCurrentItem(changed_items[0])
+
+    def line_edit_update(self):
+        s = self.eval_box.text()
+        if assignment_pattern.match(s):
+            context = self.sessions._objects.copy()
+            exec(s, la.__dict__, context)
+            varname = self.update_mapping(context)
+            if varname is not None:
+                self.expressions[varname] = s
+        else:
+            self.view_expr(eval(s, la.__dict__, self.sessions))
+
+    def view_expr(self, array, *args, **kwargs):
+        self._treewidget.clearSelection()
+        self.set_widget_array(array, '<expr>')
+
+    def _display_in_grid(self, k, v):
+        return not k.startswith('__') and isinstance(v, DISPLAY_IN_GRID)
+
+    def ipython_cell_executed(self):
+        user_ns = self.kernel.shell.user_ns
+        ip_keys = set(['In', 'Out', '_', '__', '___',
+                       '__builtin__',
+                       '_dh', '_ih', '_oh', '_sh', '_i', '_ii', '_iii',
+                       'exit', 'get_ipython', 'quit'])
+        # '__builtins__', '__doc__', '__loader__', '__name__', '__package__', '__spec__',
+        clean_ns_keys = set([k for k, v in user_ns.items() if not history_vars_pattern.match(k)]) - ip_keys
+        clean_ns = {k: v for k, v in user_ns.items() if k in clean_ns_keys}
+
+        # user_ns['_i'] is not updated yet (refers to the -2 item)
+        # 'In' and '_ih' point to the same object (but '_ih' is supposed to be the non-overridden one)
+        cur_input_num = len(user_ns['_ih']) - 1
+        last_input = user_ns['_ih'][-1]
+        if setitem_pattern.match(last_input):
+            m = setitem_pattern.match(last_input)
+            varname = m.group(1)
+            # otherwise it should have failed at this point, but let us be sure
+            if varname in clean_ns:
+                self.select_array_item(varname)
+        else:
+            # not setitem => assume expr or normal assignment
+            if last_input in clean_ns:
+                # the name exists in the session (variable)
+                if self._display_in_grid('', self.sessions[last_input]):
+                    # select and display it
+                    self.select_array_item(last_input)
+            else:
+                # any statement can contain a call to a function which updates globals
+                self.update_mapping(clean_ns)
+
+                # if the statement produced any output (probably because it is a simple expression), display it.
+
+                # _oh and Out are supposed to be synonyms but "_ih" is supposed to be the non-overridden one.
+                # It would be easier to use '_' instead but that refers to the last output, not the output of the
+                # last command. Which means that if the last command did not produce any output, _ is not modified.
+                cur_output = user_ns['_oh'].get(cur_input_num)
+                if cur_output is not None:
+                    if self._display_in_grid('_', cur_output):
+                        self.view_expr(cur_output)
+
+    def on_item_changed(self, curr, prev):
+        session = {}
+        # if parent --> array item, else --> session item
+        if curr.parent():
+            key_session = curr.parent().text(self._key_column)
+            session = self.sessions[key_session]
+            key_array = str(curr.text(self._key_column))
+            array = session[key_array]
+            self.set_widget_array(array, key_array)
+            expr = self.expressions.get(key_array, key_array)
+            if qtconsole_available:
+                # this does not work because it updates the NEXT input, not the
+                # current one (it is supposed to be called from within the console)
+                # self.kernel.shell.set_next_input(expr, replace=True)
+                # self.kernel_client.input(expr)
+                pass
+            else:
+                self.eval_box.setText(expr)
+        else:
+            session = self.sessions[curr.text(self._key_column)]
+            # display first array of current session
+            if len(session):
+                self._treewidget.setCurrentItem(curr.child(0))
+
+        # push arrays of current session in qt console
+        if qtconsole_available and self.kernel is not None:
+            self.kernel.shell.push(dict(session.items()))
+
+    def set_widget_array(self, array, title):
+        if isinstance(array, la.LArray):
+            axes = array.axes
+            axes_info = ' x '.join("%s (%d)" % (display_name, len(axis))
+                                   for display_name, axis
+                                   in zip(axes.display_names, axes))
+            title = (title + ': ' + axes_info) if title else axes_info
+        self.setWindowTitle(title)
+        self.arraywidget.set_data(array)
+
+    def apply_changes(self):
+        self.arraywidget.accept_changes()
+
+    def discard_changes(self):
+        self.arraywidget.reject_changes()
+
+    def accept(self):
+        """Reimplement Qt method"""
+        self.apply_changes()
+        QDialog.accept(self)
+
+    def reject(self):
+        """Reimplement Qt method"""
+        self.discard_changes()
+        QDialog.reject(self)
+
+    def get_value(self):
+        """Return modified session -- this is *not* a copy"""
+        # It is important to avoid accessing Qt C++ object as it has probably
+        # already been destroyed, due to the Qt.WA_DeleteOnClose attribute
+        return self.sessions
 
 
 class LinearGradient(object):
@@ -2577,7 +2962,10 @@ def edit(obj=None, title='', minvalue=None, maxvalue=None, readonly=False, depth
     if not title:
         title = get_title(obj, depth=depth + 1)
 
-    dlg = MappingEditor(parent) if hasattr(obj, 'keys') else ArrayEditor(parent)
+    if isinstance(obj, la.Session):
+        dlg = SessionsEditor()
+    else:
+        dlg = MappingEditor(parent) if hasattr(obj, 'keys') else ArrayEditor(parent)
     if dlg.setup_and_check(obj, title=title, minvalue=minvalue, maxvalue=maxvalue, readonly=readonly):
         if parent:
             dlg.show()
@@ -2725,7 +3113,8 @@ if __name__ == "__main__":
     # compare(arr3, arr4, arr5, arr6)
 
     # view(la.stack((arr3, arr4), la.Axis('arrays', 'arr3,arr4')))
-    edit()
+    session = la.Session({'arr2': arr2, 'arr3': arr3, 'arr4': arr4})
+    edit(session)
 
     # s = la.local_arrays()
     # edit(s)
