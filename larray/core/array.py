@@ -5853,7 +5853,8 @@ class LArray(ABCLArray):
             if new_workbook or overwrite_file:
                 new_workbook = overwrite_file = True
 
-            wb = open_excel(filepath, overwrite_file=overwrite_file)
+            mode = 'w' if overwrite_file else 'a'
+            wb = open_excel(filepath, mode=mode)
 
             if new_workbook:
                 sheet = wb.sheets[0]

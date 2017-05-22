@@ -196,7 +196,7 @@ class XLWingsHandler(FileHandler):
     Handler for Excel files using XLWings.
     """
     def _open_for_read(self):
-        self.handle = open_excel(self.fname)
+        self.handle = open_excel(self.fname, mode='r')
 
     def _open_for_write(self):
         overwrite_file = not os.path.isfile(self.fname)

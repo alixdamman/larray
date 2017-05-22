@@ -58,7 +58,7 @@ if xw is not None:
 
     # TODO : replace overwrite_file by mode='r'|'w'|'a' the day xlwings will support a read-only mode
     class Workbook(object):
-        def __init__(self, filepath=None, overwrite_file=False, visible=None, silent=None, app=None):
+        def __init__(self, filepath=None, mode='a', visible=None, silent=None, app=None):
             """See open_excel doc for parameters"""
             global global_app
 
@@ -78,10 +78,10 @@ if xw is not None:
                     if not ext.startswith('.xl'):
                         raise ValueError("'%s' is not a supported file "
                                          "extension" % ext)
-                    if not os.path.isfile(filepath) and not overwrite_file:
+                    if not os.path.isfile(filepath) and 'r' in mode:
                         raise ValueError("File {} does not exist. Please give the path to an existing file "
-                                         "or set overwrite_file argument to True".format(filepath))
-                    if os.path.isfile(filepath) and overwrite_file:
+                                         "or set mode to 'w' or 'a'".format(filepath))
+                    if os.path.isfile(filepath) and mode == 'w':
                         os.remove(filepath)
                     if not os.path.isfile(filepath):
                         self.new_workbook = True
@@ -479,10 +479,10 @@ if xw is not None:
                 return LArray(list_data)
 
     # XXX: remove this function?
-    def open_excel(filepath=None, overwrite_file=False, visible=None, silent=None, app=None):
-        return Workbook(filepath, overwrite_file, visible, silent, app)
+    def open_excel(filepath=None, mode='a', visible=None, silent=None, app=None):
+        return Workbook(filepath, mode, visible, silent, app)
 else:
-    def open_excel(filepath=None, overwrite_file=False, visible=None, silent=None, app=None):
+    def open_excel(filepath=None, mode='a', visible=None, silent=None, app=None):
         raise Exception("open_excel() is not available because xlwings "
                         "is not installed")
 
@@ -493,12 +493,19 @@ Open an Excel workbook
 Parameters
 ----------
 filepath : None, int or str, optional
-    path to the Excel file. The file must exist if overwrite_file is False. 
+    path to the Excel file. The file must exist if mode is set to 'r' or 'w'. 
     Use None for a new blank workbook, -1 for the last active
     workbook. Defaults to None.
-overwrite_file : bool, optional
-    whether or not to overwrite an existing file, if any.
-    Defaults to False.
+mode : {'r', 'w', 'a'}, optional
+    the mode to open the file. It can be one of the following:
+
+    * 'r': Read; similar to 'a', but the file must already exist 
+      (the read-only mode is currently not supported by xlwings).
+    * 'w': Write; a new file is created (an existing file with the same name would be deleted).
+    * 'a': Append; an existing file is opened for reading and writing, and if the file does not exist it is created.
+    * 'r+': currently idem as 'r'.
+    
+    Defaults to 'a'.
 visible : None or bool, optional
     whether or not Excel should be visible. Defaults to False for
     files, True for new/active workbooks and to None ("unchanged")
@@ -532,14 +539,13 @@ a\\b  b0  b1  b2
 
 create a new Excel file and save an array
 
->>> # to create a new Excel file, argument overwrite_file must be set to True
->>> with open_excel('excel_file.xlsx', overwrite_file=True) as wb:   # doctest: +SKIP
+>>> with open_excel('excel_file.xlsx', mode='w') as wb:   # doctest: +SKIP
 ...     wb['arr'] = arr.dump()
 ...     wb.save()
 
 read array from an Excel file
 
->>> with open_excel('excel_file.xlsx') as wb:    # doctest: +SKIP
+>>> with open_excel('excel_file.xlsx', mode='r') as wb:    # doctest: +SKIP
 ...     arr2 = wb['arr'].load()
 >>> arr2    # doctest: +SKIP
 a\\b  b0  b1  b2
