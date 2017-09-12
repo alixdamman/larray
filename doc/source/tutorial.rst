@@ -176,14 +176,23 @@ Load from files
 
     example_dir = EXAMPLE_FILES_DIR
 
+    @suppress
+    pop = read_hdf(example_dir + 'data.h5','pop')
+    @suppress
+    mortality = read_hdf(example_dir + 'data.h5','qx')
+    @suppress
+    household = read_hdf(example_dir + 'data.h5','hh')
+
 Arrays can be loaded from CSV files (see documentation of :py:func:`read_csv`
 for more details)
 
 .. ipython:: python
 
     # read_tsv is a shortcut when data are separated by tabs instead of commas (default separator of read_csv)
-    # read_eurostat is a shortcut to read EUROSTAT TSV files  
+    # read_eurostat is a shortcut to read EUROSTAT TSV files
+    @verbatim
     household = read_csv(example_dir + 'hh.csv')
+
     household.info
 
 or Excel sheets (see documentation of :py:func:`read_excel` for more details)
@@ -193,9 +202,6 @@ or Excel sheets (see documentation of :py:func:`read_excel` for more details)
     # loads array from the first sheet if no sheetname is given
     @verbatim
     pop = read_excel(example_dir + 'data.xlsx', 'pop')
-
-    @suppress
-    pop = read_csv(example_dir + 'pop.csv')
 
     pop.info
 
