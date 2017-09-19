@@ -16,7 +16,7 @@ except ImportError:
 from larray.tests.common import abspath, assert_array_equal, assert_array_nan_equal
 from larray import (LArray, Axis, LGroup, union, zeros, zeros_like, ndrange, ndtest, ones, eye, diag, stack,
                     clip, exp, where, X, mean, isnan, round, read_hdf, read_csv, read_eurostat, read_excel,
-                    from_lists, from_string, open_excel, df_aslarray, sequence)
+                    from_lists, from_string, open_excel, df_aslarray, sequence, aslarray)
 from larray.core.axis import _to_ticks, _to_key
 
 
@@ -2614,6 +2614,25 @@ age    0       1       2       3       4       5       6       7        8  ...  
         assert_array_equal(sorted_arr, arr)
 
     def test_df_aslarray(self):
+        # 1x1 array
+        data = np.array([('a0', 0)], dtype=[('a', 'U2'), ('b0', int)])
+        df = pd.DataFrame(data).set_index(['a'])
+
+        df.columns.name = 'b'
+        la = df_aslarray(df)
+        assert la.ndim == 2
+        assert la.shape == (1, 1)
+        assert la.axes.names == ['a', 'b']
+        assert_array_equal(la, ndtest((1, 1)))
+
+        df.columns.name = None
+        la = df_aslarray(df)
+        assert la.ndim == 2
+        assert la.shape == (1, 1)
+        assert la.axes.names == ['a', None]
+        assert_array_equal(la, ndtest((1, 1)).set_axes('b', Axis(['b0'])))
+
+        # 3D array
         dt = [('age', int), ('sex', 'U1'),
               ('2007', int), ('2010', int), ('2013', int)]
         data = np.array([
@@ -2635,6 +2654,17 @@ age    0       1       2       3       4       5       6       7        8  ...  
         self.assertEqual(la.shape, (4, 2, 3))
         self.assertEqual(la.axes.names, ['age', 'sex', 'time'])
         assert_array_equal(la[0, 'F', :], [3722, 3395, 3347])
+
+    def test_aslarray(self):
+        # LArray
+        arr = ndtest((2, 2))
+        assert_array_equal(aslarray(arr), arr)
+        # Dataframe
+        df = arr.to_frame()
+        assert_array_equal(aslarray(df), arr)
+        arr1d = ndtest((1, 1))
+        df = arr1d.to_frame()
+        assert_array_equal(aslarray(df), arr1d)
 
     def test_to_csv(self):
         la = read_csv(abspath('test5d.csv'))

@@ -253,3 +253,5 @@ Fixes
 -----
 
 * fixed array creation with axis(es) given as string containing only one label (axis name and label were inversed).
+
+* fixed converting an 1x1 Pandas Dataframe to an LArray through `aslarray` function (closes :issue:`427`).

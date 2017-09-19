@@ -78,22 +78,17 @@ def df_aslarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header
             # take the first column which contains '\'
             # pos_last = next(i for i, v in enumerate(columns) if '\\' in str(v))
             pos_last = next(i for i, v in enumerate(columns) if isinstance(v, basestring) and '\\' in v)
-            onedim = False
         except StopIteration:
             # we assume first column will not contain data
             pos_last = 0
-            onedim = True
 
         axes_names = columns[:pos_last + 1]
-        if onedim:
-            df = df.iloc[:, 1:]
-        else:
-            # This is required to handle int column names (otherwise we can simply use column positions in set_index).
-            # This is NOT the same as df.columns[list(range(...))] !
-            index_columns = [df.columns[i] for i in range(pos_last + 1)]
-            # TODO: we should pass a flag to df_aslarray so that we can use inplace=True here
-            # df.set_index(index_columns, inplace=True)
-            df = df.set_index(index_columns)
+        # This is required to handle int column names (otherwise we can simply use column positions in set_index).
+        # This is NOT the same as df.columns[list(range(...))] !
+        index_columns = [df.columns[i] for i in range(pos_last + 1)]
+        # TODO: we should pass a flag to df_aslarray so that we can use inplace=True here
+        # df.set_index(index_columns, inplace=True)
+        df = df.set_index(index_columns)
     else:
         axes_names = [decode(name, 'utf8') for name in df.index.names]
 
@@ -108,6 +103,8 @@ def df_aslarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header
     elif len(df) > 1:
         axes_names += [df.columns.name]
 
+    print('axes_names', axes_names)
+
     if len(axes_names) > 1:
         df, axes_labels = cartesian_product_df(df, sort_rows=sort_rows, sort_columns=sort_columns, **kwargs)
     else:
@@ -121,8 +118,7 @@ def df_aslarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header
     # Pandas treats column labels as column names (strings) so we need to convert them to values
     last_axis_labels = [parse(cell) for cell in df.columns.values] if parse_header else list(df.columns.values)
     axes_labels.append(last_axis_labels)
-    axes_names = [str(name) if name is not None else name
-                  for name in axes_names]
+    axes_names = [str(name) if name is not None else name for name in axes_names]
 
     axes = [Axis(labels, name) for labels, name in zip(axes_labels, axes_names)]
     data = df.values.reshape([len(axis) for axis in axes])
