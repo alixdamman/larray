@@ -1010,6 +1010,29 @@ class Session(object):
         return '\n'.join(template.format(**kwargs) for kwargs in templ_kwargs)
 
 
+
+def to_session(Cls):
+    class UserDefinedSession(Session):
+        def __init__(self, *args, **kwargs):
+            instance = Cls(*args, **kwargs)
+            super(UserDefinedSession, self).__init__(vars(instance))
+        # def __getattribute__(self,s):
+        #     """
+        #     this is called whenever any attribute of a NewCls object is accessed. This function first tries to
+        #     get the attribute off NewCls. If it fails then it tries to fetch the attribute from self.session (an
+        #     instance of the decorated class). If it manages to fetch the attribute from self.session, and
+        #     the attribute is an instance method then `time_this` is applied.
+        #     """
+        #     try:
+        #         x = super(UserDefinedSession,self).__getattribute__(s)
+        #     except AttributeError:
+        #         pass
+        #     else:
+        #         return x
+        #     x = self.instance.__getattribute__(s)
+    return UserDefinedSession
+
+
 def _exclude_private_vars(vars_dict):
     return {k: v for k, v in vars_dict.items() if not k.startswith('_')}
 
