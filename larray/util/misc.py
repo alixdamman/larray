@@ -79,13 +79,162 @@ def prod(values):
     return reduce(operator.mul, values, 1)
 
 
-def format_value(value, missing, fullinfo=False):
+_table_print_options = {
+    'missing': 'nan',
+    'fullinfo': False,
+    'summarize': True,
+    'maxwidth': 200,
+    'numedges': 'auto',
+    'sep': '  ',
+    'cont': '...',
+    'precision': 8,     # precision of floating point representations
+    }
+
+
+# adapted from Numpy: https://github.com/numpy/numpy/blob/v1.14.0/numpy/core/arrayprint.py
+def set_printoptions(missing='nan', fullinfo=False, summarize=True, maxwidth=200, numedges='auto', sep='  ',
+                     cont='...', precision=8):
+    """
+    Set printing options for arrays. These options determine the way arrays are displayed.
+
+    Parameters
+    ----------
+    missing : str, optional
+        String representation of a missing value, i.e. which satisfies value != value (nan).
+        Used only if fullinfo is set to False.
+        Defaults to 'nan'.
+    fullinfo : bool, optional
+        Whether or not to return float using default format '.<precision>f' and use passed
+        missing argument for missing values.
+    summarize : bool, optional
+        Whether or not to display header and tail of an array when it is too big to be fully displayed.
+        Defaults to True.
+    maxwidth : int, optional
+        Maximum number of characters to print per line. Defaults to 200.
+    numedges : str, optional
+        ...
+        Defaults to 'auto'.
+    sep : str, optional
+        ...
+        Defaults to two whitespaces.
+    cont : str, optional
+        ...
+        Defaults to '...'.
+    keepcols : int, optional
+        Whether or not to ...
+        Defaults to 0.
+    precision : int, optional
+        Number of digits of precision for floating point output.
+        Defaults to 8.
+
+    See Also
+    --------
+    get_printoptions
+
+    Notes
+    -----
+    `formatter` is always reset with a call to `set_printoptions`.
+
+    Examples
+    --------
+
+    """
+    # missing
+    if not isinstance(missing, basestring):
+        raise TypeError("missing must be a string value")
+    _table_print_options['missing'] = missing
+
+    # fullinfo
+    if not isinstance(fullinfo, bool):
+        raise TypeError("fullinfo must be a boolean value: True or False")
+    _table_print_options['fullinfo'] = fullinfo
+
+    # summarize
+    if not isinstance(summarize, bool):
+        raise TypeError("summarize must be a boolean value: True or False")
+    _table_print_options['summarize'] = summarize
+
+    # maxwidth
+    if not isinstance(maxwidth, int):
+        raise TypeError("maxwidth must be an integer")
+    _table_print_options['maxwidth'] = maxwidth
+
+    # numedges
+    if not isinstance(numedges, basestring):
+        raise TypeError("numedges must be a string value")
+    _table_print_options['numedges'] = numedges
+
+    # sep
+    if not isinstance(sep, basestring):
+        raise TypeError("sep must be a string value")
+    _table_print_options['sep'] = sep
+
+    # cont
+    if not isinstance(cont, basestring):
+        raise TypeError("cont must be a string value")
+    _table_print_options['cont'] = cont
+
+    # precision
+    if not isinstance(precision, int):
+        raise TypeError("precision must be an integer value")
+    _table_print_options['precision'] = precision
+
+
+def get_printoptions():
+    """
+    Return the current print options.
+
+    Returns
+    -------
+    print_opts : dict
+        Dictionary of current print options with keys.
+        For a full description of these options, see `set_printoptions`.
+
+    See Also
+    --------
+    set_printoptions
+    """
+    return _table_print_options.copy()
+
+
+def format_value(value, precision=8, missing='nan', fullinfo=False):
+    """
+    Format a value.
+
+    Parameters
+    ----------
+    value : scalar or Numpy ndarray
+        Value to be formatted.
+    precision : int, optional
+        Number of digits of precision for floating point output.
+        Defaults to 8.
+    missing : str
+        String representation of a missing value, i.e. which satisfies value != value (nan).
+        Used only if fullinfo is set to False.
+        Defaults to 'nan'.
+    fullinfo : bool
+        Whether or not to return float using default format '.<precision>f' and use passed
+        missing argument for missing values.
+        Defaults to False.
+
+    Returns
+    -------
+    Formatted value.
+
+    Examples
+    --------
+    >>> value = 3.141592653589793
+    >>> format_value(value, precision=4)
+    '3.1416'
+    >>> format_value(value, fullinfo=True)
+    '3.141592653589793'
+    """
     if isinstance(value, float) and not fullinfo:
         # nans print as "-1.#J", let's use something nicer
         if value != value:
             return missing
         else:
-            return '%2.f' % value
+            return '{:.{precision}f}'.format(value, precision=precision)
     elif isinstance(value, np.ndarray) and value.shape:
         # prevent numpy's default wrapping
         return str(list(value)).replace(',', '')
@@ -129,12 +278,25 @@ def get_min_width(table, index):
     return max(longest_word(row[index]) for row in table)
 
 
-def table2str(table, missing, fullinfo=False, summarize=True, maxwidth=80, numedges='auto', sep='  ', cont='...',
-              keepcols=0):
+def table2str(table, keepcols=0):
     """
-    table is a list of lists
-    :type table: list of list
+
+    Parameters
+    ----------
+    table : nested list
+        Table to format as string.
+    keepcols : int
+        ...
+
+    Returns
+    -------
+    Table formatted as string.
     """
+    return _table2str(table, keepcols=keepcols, **_table_print_options)
+
+
+def _table2str(table, precision=None, missing=None, fullinfo=None, summarize=None, maxwidth=None, numedges=None,
+              sep=None, cont=None, keepcols=None):
     if not table:
         return ''
     numcol = max(len(row) for row in table)
@@ -142,7 +304,7 @@ def table2str(table, missing, fullinfo=False, summarize=True, maxwidth=80, numed
     for row in table:
         if len(row) < numcol:
             row.extend([''] * (numcol - len(row)))
-    formatted = [[format_value(value, missing, fullinfo) for value in row]
+    formatted = [[format_value(value, precision, missing, fullinfo) for value in row]
                  for row in table]
     maxwidths = [get_col_width(formatted, i) for i in range(numcol)]
 

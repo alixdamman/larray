@@ -68,7 +68,7 @@ from larray.core.group import (Group, IGroup, LGroup, remove_nested_groups, _to_
 from larray.core.axis import Axis, AxisReference, AxisCollection, X, _make_axis
 from larray.util.misc import (table2str, size2str, basestring, izip, rproduct, ReprString, duplicates,
                               float_error_handler_factory, _isnoneslice, light_product, unique_list, common_type,
-                              renamed_to, deprecate_kwarg)
+                              renamed_to, deprecate_kwarg, set_printoptions)
 
 
 nan = np.nan
@@ -2504,7 +2504,8 @@ class LArray(ABCLArray):
             return 'LArray([])'
         else:
             table = list(self.as_table(maxlines=200, edgeitems=5))
-            return table2str(table, 'nan', fullinfo=True, maxwidth=200, keepcols=self.ndim - 1)
+            table = table2str(table, keepcols=self.ndim - 1)
+            return table
     __repr__ = __str__
 
     def __iter__(self):
