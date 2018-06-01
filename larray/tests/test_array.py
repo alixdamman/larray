@@ -17,6 +17,7 @@ from larray.tests.common import inputpath, assert_array_equal, assert_array_nan_
 from larray import (LArray, Axis, LGroup, union, zeros, zeros_like, ndtest, ones, eye, diag, stack,
                     clip, exp, where, X, mean, isnan, round, read_hdf, read_csv, read_eurostat, read_excel,
                     from_lists, from_string, open_excel, from_frame, sequence, nan_equal)
+from larray.core.array import concat
 from larray.inout.pandas import from_series
 from larray.core.axis import _to_ticks, _to_key
 from larray.util.misc import StringIO, LHDFStore
@@ -84,7 +85,7 @@ def meta():
                      ('location', location), ('date', date)])
 
 
-def test_array_metadata(meta, tmpdir):
+def test_read_set_update_delete_metadata(meta, tmpdir):
     # __eq__
     meta2 = meta.copy()
     assert meta2 == meta
@@ -120,7 +121,6 @@ def test_array_metadata(meta, tmpdir):
     with open(fname, 'rb') as f:
         meta2 = Metadata(pickle.load(f))
     assert meta2 == meta
-
 
 def test_metadata_hdf(meta, tmpdir):
     key = 'meta'
@@ -174,24 +174,35 @@ io_narrow_missing_values = io_missing_values.copy()
 io_narrow_missing_values[2, 'b1', 'c1'] = np.nan
 
 
-def test_ndrange():
-    arr = ndtest('a=a0..a2')
+def test_concat(meta):
+    res = concat((ndtest((2, 3)), ndtest('b=b4,b5')), 'b', meta=meta)
+    assert res.meta == meta
+
+def test_compact(meta):
+    arr = LArray([[1, 2], [1, 2]], [Axis('sex=M,F'), Axis('nat=BE,FO')], meta=meta)
+    assert arr.compact().meta == meta
+
+def test_ndrange(meta):
+    arr = ndtest('a=a0..a2', meta=meta)
     assert arr.shape == (3,)
     assert arr.axes.names == ['a']
     assert_array_equal(arr.data, np.arange(3))
+    assert arr.meta == meta
 
     # using an explicit Axis object
     a = Axis('a=a0..a2')
-    arr = ndtest(a)
+    arr = ndtest(a, meta=meta)
     assert arr.shape == (3,)
     assert arr.axes.names == ['a']
     assert_array_equal(arr.data, np.arange(3))
+    assert arr.meta == meta
 
     # using a group as an axis
-    arr = ndtest(a[:'a1'])
+    arr = ndtest(a[:'a1'], meta=meta)
     assert arr.shape == (2,)
     assert arr.axes.names == ['a']
     assert_array_equal(arr.data, np.arange(2))
+    assert arr.meta == meta
 
 def test_getattr(array):
     assert type(array.geo) == Axis
@@ -199,15 +210,17 @@ def test_getattr(array):
     with pytest.raises(AttributeError):
         array.geom
 
-def test_zeros():
-    la = zeros((geo, age))
+def test_zeros(meta):
+    la = zeros((geo, age), meta=meta)
     assert la.shape == (44, 116)
     assert_array_equal(la, np.zeros((44, 116)))
+    assert la.meta == meta
 
-def test_zeros_like(array):
-    la = zeros_like(array)
+def test_zeros_like(array, meta):
+    la = zeros_like(array, meta=meta)
     assert la.shape == (116, 44, 2, 15)
     assert_array_equal(la, np.zeros((116, 44, 2, 15)))
+    assert la.meta == meta
 
 def test_bool():
     a = ones([2])
@@ -238,11 +251,13 @@ def test_rename(array):
     # old array axes names not modified
     assert array.axes.names == ['age', 'geo', 'sex', 'lipro']
     assert new_array.axes.names == ['age', 'geo', 'gender', 'lipro']
+    assert new_array.meta == array.meta
 
     new_array = array.rename(sex, 'gender')
     # old array axes names not modified
     assert array.axes.names == ['age', 'geo', 'sex', 'lipro']
     assert new_array.axes.names == ['age', 'geo', 'gender', 'lipro']
+    assert new_array.meta == array.meta
 
 def test_info(array):
     expected = """\
@@ -927,12 +942,14 @@ def test_setitem_larray(array, small_array):
     arr[ages1_5_9] = arr[ages1_5_9] + 25.0
     raw[[1, 5, 9]] = raw[[1, 5, 9]] + 25.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # b) value has exactly the same shape but LGroup at a "wrong" positions
     arr = array.copy()
     arr[geo[:], ages1_5_9] = arr[ages1_5_9] + 25.0
     # same raw as previous test
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # c) value has an extra length-1 axis
     arr = array.copy()
@@ -945,6 +962,7 @@ def test_setitem_larray(array, small_array):
     arr[ages1_5_9] = value
     raw[[1, 5, 9]] = raw[[1, 5, 9]] + 26.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # d) value has the same axes than target but one has length 1
     # arr = array.copy()
@@ -959,6 +977,7 @@ def test_setitem_larray(array, small_array):
     arr[ages1_5_9] = arr[ages1_5_9].sum(geo)
     raw[[1, 5, 9]] = np.sum(raw[[1, 5, 9]], axis=1, keepdims=True)
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # 2) using a LGroup and scalar key (triggers advanced indexing/cross)
 
@@ -971,6 +990,7 @@ def test_setitem_larray(array, small_array):
     arr[age[1, 5, 8], sex['M']] = value
     raw[[1, 5, 8], :, 0] = raw[[1, 5, 8], :, 0] + 25.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # 3) using a string key
     arr = array.copy()
@@ -978,12 +998,14 @@ def test_setitem_larray(array, small_array):
     arr['1, 5, 9'] = arr['1, 5, 9'] + 27.0
     raw[[1, 5, 9]] = raw[[1, 5, 9]] + 27.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # 4) using ellipsis keys
     # only Ellipsis
     arr = array.copy()
     arr[...] = 0
     assert_array_equal(arr, np.zeros_like(raw))
+    assert arr.meta == array.meta
 
     # Ellipsis and LGroup
     arr = array.copy()
@@ -991,11 +1013,13 @@ def test_setitem_larray(array, small_array):
     arr[..., lipro['P01,P05,P09']] = 0
     raw[..., [0, 4, 8]] = 0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # 5) using a single slice(None) key
     arr = array.copy()
     arr[:] = 0
     assert_array_equal(arr, np.zeros_like(raw))
+    assert arr.meta == array.meta
 
     # 6) incompatible axes
     arr = small_array.copy()
@@ -1030,6 +1054,7 @@ def test_setitem_ndarray(array):
     arr[[1, 5, 9]] = value
     raw[[1, 5, 9]] = value
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # b) value has the same axes than target but one has length 1
     arr = array.copy()
@@ -1038,6 +1063,7 @@ def test_setitem_ndarray(array):
     arr[[1, 5, 9]] = value
     raw[[1, 5, 9]] = value
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
 def test_setitem_scalar(array):
     """
@@ -1049,6 +1075,7 @@ def test_setitem_scalar(array):
     arr[[1, 5, 9]] = 42
     raw[[1, 5, 9]] = 42
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # b) full scalar key (ie set one cell)
     arr = array.copy()
@@ -1056,6 +1083,7 @@ def test_setitem_scalar(array):
     arr[0, 'P02', 'A12', 'M'] = 42
     raw[0, 1, 0, 1] = 42
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
 def test_setitem_bool_array_key(array):
     # XXX: this test is awfully slow (more than 1s)
@@ -1068,6 +1096,7 @@ def test_setitem_bool_array_key(array):
     arr[arr < 5] = 0
     raw[raw < 5] = 0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # a2) same shape, different order
     arr = array.copy()
@@ -1076,6 +1105,7 @@ def test_setitem_bool_array_key(array):
     arr[key] = 0
     raw[raw < 5] = 0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # b) numpy-broadcastable shape
     # arr = array.copy()
@@ -1085,6 +1115,7 @@ def test_setitem_bool_array_key(array):
     # arr[key] = 0
     # raw[raw[:, :, [1]] < 5] = 0
     # assert_array_equal(arr, raw)
+    # assert arr.meta == array.meta
 
     # c) LArray-broadcastable shape (missing axis)
     arr = array.copy()
@@ -1097,6 +1128,7 @@ def test_setitem_bool_array_key(array):
     raw_d1, raw_d2, raw_d4 = raw_key.nonzero()
     raw[raw_d1, raw_d2, :, raw_d4] = 0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # ndarray key
     arr = array.copy()
@@ -1104,6 +1136,7 @@ def test_setitem_bool_array_key(array):
     arr[raw < 5] = 0
     raw[raw < 5] = 0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # d) LArray with extra axes
     arr = array.copy()
@@ -1126,6 +1159,7 @@ def test_set(array):
     arr.set(arr[ages1_5_9] + 25.0, age=ages1_5_9)
     raw[[1, 5, 9]] = raw[[1, 5, 9]] + 25.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # b) same size but a different shape (extra length-1 axis)
     arr = array.copy()
@@ -1138,6 +1172,7 @@ def test_set(array):
     arr.set(value, age=ages1_5_9)
     raw[[1, 5, 9]] = raw[[1, 5, 9]] + 26.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # dimension of length 1
     # arr = array.copy()
@@ -1145,6 +1180,7 @@ def test_set(array):
     # raw[[1, 5, 9]] = np.sum(raw[[1, 5, 9]], axis=1, keepdims=True)
     # arr.set(arr[ages1_5_9].sum(geo=(geo.all(),)), age=ages1_5_9)
     # assert_array_equal(arr, raw)
+    # assert arr.meta == array.meta
 
     # c) missing dimension
     arr = array.copy()
@@ -1152,6 +1188,7 @@ def test_set(array):
     arr.set(arr[ages1_5_9].sum(geo), age=ages1_5_9)
     raw[[1, 5, 9]] = np.sum(raw[[1, 5, 9]], axis=1, keepdims=True)
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
     # 2) using a raw key
     arr = array.copy()
@@ -1159,6 +1196,7 @@ def test_set(array):
     arr.set(arr[[1, 5, 9]] + 27.0, age=[1, 5, 9])
     raw[[1, 5, 9]] = raw[[1, 5, 9]] + 27.0
     assert_array_equal(arr, raw)
+    assert arr.meta == array.meta
 
 def test_filter(array):
     age, geo, sex, lipro = array.axes
@@ -2105,37 +2143,46 @@ def test_total(array):
     #    multiple axes).
     a1 = array.with_total(X.sex, (fla, wal, bru), X.geo, X.lipro)
     assert a1.shape == (116, 48, 3, 16)
+    assert a1.meta == array.meta
 
     # correct total but the order is not very nice
     a2 = array.with_total(X.sex, X.geo, (fla, wal, bru), X.lipro)
     assert a2.shape == (116, 48, 3, 16)
+    assert a2.meta == array.meta
 
     # the correct way to do it
     a3 = array.with_total(X.sex, (fla, wal, bru, bel), X.lipro)
     assert a3.shape == (116, 48, 3, 16)
+    assert a3.meta == array.meta
 
     # a4 = array.with_total((lipro[':P05'], lipro['P05:']), op=mean)
     a4 = array.with_total((':P05', 'P05:'), op=mean)
     assert a4.shape == (116, 44, 2, 17)
+    assert a4.meta == array.meta
 
-def test_transpose():
-    arr = ndtest((2, 3, 4))
+def test_transpose(meta):
+    arr = ndtest((2, 3, 4), meta=meta)
     a, b, c = arr.axes
     res = arr.transpose()
     assert res.axes == [c, b, a]
+    assert res.meta == meta
     res = arr.transpose('b', 'c', 'a')
     assert res.axes == [b, c, a]
+    assert res.meta == meta
     res = arr.transpose('b')
     assert res.axes == [b, a, c]
+    assert res.meta == meta
 
     # using Ellipsis instead of ... to avoid a syntax error on Python 2 (where ... is only available within [])
     res = arr.transpose(Ellipsis, 'a')
     assert res.axes == [b, c, a]
+    assert res.meta == meta
     res = arr.transpose('c', Ellipsis, 'a')
     assert res.axes == [c, b, a]
+    assert res.meta == meta
 
-def test_transpose_anonymous():
-    a = ndtest([Axis(2), Axis(3), Axis(4)])
+def test_transpose_anonymous(meta):
+    a = ndtest([Axis(2), Axis(3), Axis(4)], meta=meta)
 
     # reordered = a.transpose(0, 2, 1)
     # self.assertEqual(reordered.shape, (2, 4, 3))
@@ -2153,12 +2200,15 @@ def test_transpose_anonymous():
     # union to match axes by position
     reordered = a.transpose(1, 2)
     assert reordered.shape == (3, 4, 2)
+    assert reordered.meta == meta
 
     reordered = a.transpose(2, 0)
     assert reordered.shape == (4, 2, 3)
+    assert reordered.meta == meta
 
     reordered = a.transpose()
     assert reordered.shape == (4, 3, 2)
+    assert reordered.meta == meta
 
 def test_binary_ops(small_array):
     raw = small_array.data
@@ -2329,70 +2379,85 @@ def test_mean(small_array):
     sex, lipro = small_array.axes
     assert_array_equal(small_array.mean(lipro), raw.mean(1))
 
-def test_sequence():
-    res = sequence('b=b0..b2', ndtest(3) * 3, 1.0)
+def test_sequence(meta):
+    res = sequence('b=b0..b2', ndtest(3) * 3, 1.0, meta=meta)
     assert_array_equal(ndtest((3, 3), dtype=float), res)
+    assert res.meta == meta
 
-def test_sort_values():
+def test_sort_values(meta):
     # 1D arrays
-    arr = LArray([0, 1, 6, 3, -1], "a=a0..a4")
+    arr = LArray([0, 1, 6, 3, -1], "a=a0..a4", meta=meta)
     res = arr.sort_values()
     expected = LArray([-1, 0, 1, 3, 6], "a=a4,a0,a1,a3,a2")
     assert_array_equal(res, expected)
+    assert res.meta == meta
     # ascending arg
     res = arr.sort_values(ascending=False)
     expected = LArray([6, 3, 1, 0, -1], "a=a2,a3,a1,a0,a4")
     assert_array_equal(res, expected)
+    assert res.meta == meta
 
     # 3D arrays
     arr = LArray([[[10, 2, 4], [3, 7, 1]], [[5, 1, 6], [2, 8, 9]]],
-                 'a=a0,a1; b=b0,b1; c=c0..c2')
+                 'a=a0,a1; b=b0,b1; c=c0..c2', meta=meta)
     res = arr.sort_values(axis='c')
     expected = LArray([[[2, 4, 10], [1, 3, 7]], [[1, 5, 6], [2, 8, 9]]],
                       [Axis('a=a0,a1'), Axis('b=b0,b1'), Axis(3, 'c')])
     assert_array_equal(res, expected)
+    assert res.meta == meta
+
+def test_sort_axes(meta):
+    arr = ndtest("nat=EU,FO,BE; sex=M,F", meta=meta)
+    assert arr.sort_axes(('sex', 'nat')).meta == meta
 
 def test_set_labels(small_array):
     small_array.set_labels(X.sex, ['Man', 'Woman'], inplace=True)
-    assert_array_equal(small_array, small_array.set_labels(X.sex, ['Man', 'Woman']))
+    expected = small_array.set_labels(X.sex, ['Man', 'Woman'])
+    assert_array_equal(small_array, expected)
+    assert expected.meta == small_array.meta
 
-def test_replace_axes(small_array):
+def test_set_axes(small_array):
     lipro2 = Axis([l.replace('P', 'Q') for l in lipro.labels], 'lipro2')
     sex2 = Axis(['Man', 'Woman'], 'sex2')
 
-    la = LArray(small_array.data, axes=(sex, lipro2), title=small_array.title)
+    la = LArray(small_array.data, axes=(sex, lipro2), meta=small_array.meta)
     # replace one axis
     la2 = small_array.set_axes(X.lipro, lipro2)
     assert_array_equal(la, la2)
-    assert la.title == la2.title, "title of array returned by replace_axes should be the same as the " \
-                                          "original one. We got '{}' instead of '{}'".format(la2.title, la.title)
+    assert la.meta == la2.meta
 
-    la = LArray(small_array.data, axes=(sex2, lipro2), title=small_array.title)
+    la = LArray(small_array.data, axes=(sex2, lipro2), meta=small_array.meta)
     # all at once
     la2 = small_array.set_axes([sex2, lipro2])
     assert_array_equal(la, la2)
+    assert la.meta == la2.meta
     # using keywrods args
     la2 = small_array.set_axes(sex=sex2, lipro=lipro2)
     assert_array_equal(la, la2)
+    assert la.meta == la2.meta
     # using dict
     la2 = small_array.set_axes({X.sex: sex2, X.lipro: lipro2})
     assert_array_equal(la, la2)
+    assert la.meta == la2.meta
     # using list of pairs (axis_to_replace, new_axis)
     la2 = small_array.set_axes([(X.sex, sex2), (X.lipro, lipro2)])
     assert_array_equal(la, la2)
+    assert la.meta == la2.meta
 
-def test_reindex():
-    arr = ndtest((2, 2))
+def test_reindex(meta):
+    arr = ndtest((2, 2), meta=meta)
     res = arr.reindex(X.b, ['b1', 'b2', 'b0'], fill_value=-1)
     assert_array_equal(res, from_string("""a\\b  b1  b2  b0
                                              a0   1  -1   0
                                              a1   3  -1   2"""))
+    assert res.meta == meta
 
-    arr2 = ndtest((2, 2))
+    arr2 = ndtest((2, 2), meta=meta)
     arr2.reindex(X.b, ['b1', 'b2', 'b0'], fill_value=-1, inplace=True)
     assert_array_equal(arr2, from_string("""a\\b  b1  b2  b0
                                               a0   1  -1   0
                                               a1   3  -1   2"""))
+    assert arr2.meta == meta
 
     # LArray fill value
     filler = ndtest(arr.a)
@@ -2400,38 +2465,54 @@ def test_reindex():
     assert_array_equal(res, from_string("""a\\b  b1  b2  b0
                                              a0   1   0   0
                                              a1   3   1   2"""))
+    assert res.meta == meta
 
     # using labels from another array
-    arr = ndtest('a=v0..v2;b=v0,v2,v1,v3')
+    arr = ndtest('a=v0..v2;b=v0,v2,v1,v3', meta=meta)
     res = arr.reindex('a', arr.b.labels, fill_value=-1)
     assert_array_equal(res, from_string("""a\\b  v0  v2  v1  v3
                                              v0   0   1   2   3
                                              v2   8   9  10  11
                                              v1   4   5   6   7
                                              v3  -1  -1  -1  -1"""))
+    assert res.meta == meta
     res = arr.reindex('a', arr.b, fill_value=-1)
     assert_array_equal(res, from_string("""a\\b  v0  v2  v1  v3
                                              v0   0   1   2   3
                                              v2   8   9  10  11
                                              v1   4   5   6   7
                                              v3  -1  -1  -1  -1"""))
+    assert res.meta == meta
 
     # passing a list of Axis
-    arr = ndtest((2, 2))
+    arr = ndtest((2, 2), meta=meta)
     res = arr.reindex([Axis("a=a0,a1"), Axis("c=c0"), Axis("b=b1,b2")], fill_value=-1)
     assert_array_equal(res, from_string(""" a  b\\c  c0
                                            a0   b1   1
                                            a0   b2  -1
                                            a1   b1   3
                                            a1   b2  -1"""))
+    assert res.meta == meta
+
+def test_align(meta):
+    meta2 = meta.copy()
+    meta.title = 'test array 2'
+    arr1 = ndtest((2, 3), meta=meta)
+    arr2 = ndtest((3, 2), meta=meta2)
+
+    aligned1, aligned2 = arr1.align(arr2)
+    assert aligned1.meta == meta
+    assert aligned2.meta == meta2
 
 def test_append(small_array):
     sex, lipro = small_array.axes
+    meta = small_array.meta.copy()
 
     small_array = small_array.append(lipro, small_array.sum(lipro), label='sum')
     assert small_array.shape == (2, 16)
     small_array = small_array.append(sex, small_array.sum(sex), label='sum')
     assert small_array.shape == (3, 16)
+    assert small_array.meta == meta
 
     # crap the sex axis is different !!!! we don't have this problem with
     # the kwargs syntax below
@@ -2442,9 +2523,9 @@ def test_append(small_array):
     # small_array = small_array.append(lipro=small_array.sum(lipro), label='sum')
     # self.assertEqual(small_array.shape, (117, 44, 2, 15))
 
-def test_insert():
+def test_insert(meta):
     # simple tests are in the docstring
-    arr1 = ndtest((2, 3))
+    arr1 = ndtest((2, 3), meta=meta)
 
     # insert at multiple places at once
 
@@ -2454,46 +2535,56 @@ def test_insert():
     ['a\\b', 'b0', 'new', 'new', 'b1', 'b2'],
     ['a0',      0,    42,    43,    1,    2],
     ['a1',      3,    42,    43,    4,    5]]))
+    assert res.meta == meta
 
     res = arr1.insert(42, before=['b1', 'b2'], label='new')
     assert_array_equal(res, from_lists([
     ['a\\b', 'b0', 'new', 'b1', 'new', 'b2'],
     ['a0',      0,    42,    1,    42,    2],
     ['a1',      3,    42,    4,    42,    5]]))
+    assert res.meta == meta
 
     res = arr1.insert(42, before='b1', label=['b0.1', 'b0.2'])
     assert_array_equal(res, from_string("""
     a\\b  b0  b0.1  b0.2  b1  b2
      a0   0    42    42   1   2
      a1   3    42    42   4   5"""))
+    assert res.meta == meta
 
     res = arr1.insert(42, before=['b1', 'b2'], label=['b0.5', 'b1.5'])
     assert_array_equal(res, from_string("""
     a\\b  b0  b0.5  b1  b1.5  b2
      a0   0    42   1    42   2
      a1   3    42   4    42   5"""))
+    assert res.meta == meta
 
     res = arr1.insert([42, 43], before='b1', label=['b0.1', 'b0.2'])
     assert_array_equal(res, from_string("""
     a\\b  b0  b0.1  b0.2  b1  b2
      a0   0    42    43   1   2
      a1   3    42    43   4   5"""))
+    assert res.meta == meta
+
     res = arr1.insert([42, 43], before=['b1', 'b2'], label='new')
     assert_array_equal(res, from_lists([
     ['a\\b',  'b0',  'new',  'b1',  'new',  'b2'],
     [  'a0',     0,     42,     1,     43,     2],
     [  'a1',     3,     42,     4,     43,     5]]))
+    assert res.meta == meta
 
     res = arr1.insert([42, 43], before=['b1', 'b2'], label=['b0.5', 'b1.5'])
     assert_array_equal(res, from_string("""
     a\\b  b0  b0.5  b1  b1.5  b2
      a0   0    42   1    43   2
      a1   3    42   4    43   5"""))
+    assert res.meta == meta
+
     res = arr1.insert([42, 43], before='b1,b2', label=['b0.5', 'b1.5'])
     assert_array_equal(res, from_string("""
     a\\b  b0  b0.5  b1  b1.5  b2
      a0   0    42   1    43   2
      a1   3    42   4    43   5"""))
+    assert res.meta == meta
 
     arr2 = ndtest(2)
     res = arr1.insert([arr2 + 42, arr2 + 43], before=['b1', 'b2'], label=['b0.5', 'b1.5'])
@@ -2501,6 +2592,7 @@ def test_insert():
     a\\b  b0  b0.5  b1  b1.5  b2
      a0   0    42   1    43   2
      a1   3    43   4    44   5"""))
+    assert res.meta == meta
 
     arr3 = ndtest('a=a0,a1;b=b0.1,b0.2') + 42
     res = arr1.insert(arr3, before='b1,b2')
@@ -2508,19 +2600,23 @@ def test_insert():
     a\\b  b0  b0.1  b1  b0.2  b2
      a0   0    42   1    43   2
      a1   3    44   4    45   5"""))
+    assert res.meta == meta
 
     # with ambiguous labels
-    arr4 = ndtest('a=v0,v1;b=v0,v1')
+    arr4 = ndtest('a=v0,v1;b=v0,v1', meta=meta)
     res = arr4.insert(42, before='v1', axis='b', label='v0.5')
     assert_array_equal(res, from_string("""
     a\\b  v0  v0.5  v1
      v0   0    42   1
      v1   2    42   3"""))
+    assert res.meta == meta
+
     res = arr4.insert(42, before=arr4.b['v1'], label='v0.5')
     assert_array_equal(res, from_string("""
     a\\b  v0  v0.5  v1
      v0   0    42   1
      v1   2    42   3"""))
+    assert res.meta == meta
 
 # the aim of this test is to drop the last value of an axis, but instead
 # of dropping the last axis tick/label, drop the first one.
@@ -2539,6 +2635,7 @@ def test_shift_axis(small_array):
 
 def test_extend(small_array):
     sex, lipro = small_array.axes
+    meta = small_array.meta.copy()
 
     all_lipro = lipro[:]
     tail = small_array.sum(lipro=(all_lipro,))
@@ -2547,6 +2644,13 @@ def test_extend(small_array):
     # test with a string axis
     small_array = small_array.extend('sex', small_array.sum(sex=(sex[:],)))
     assert small_array.shape == (3, 16)
+    assert small_array.meta == meta
+
+def test_expand(meta):
+    a = Axis('a=a1,a2')
+    b = Axis('b=b1,b2')
+    c = Axis('c=c1,c2')
+    assert ndtest([a, b], meta=meta).expand([a, c, b]).meta == meta
 
 def test_hdf_roundtrip(tmpdir):
     a = ndtest((2, 3))
@@ -3967,36 +4071,40 @@ def test_rmatmul():
     assert isinstance(res, LArray)
     assert_array_equal(res, ndtest([Axis(3), Axis(3)]) * 2)
 
-def test_broadcast_with():
+def test_broadcast_with(meta):
     a1 = ndtest((3, 2))
-    a2 = ndtest(3)
+    a2 = ndtest(3, meta=meta)
     b = a2.broadcast_with(a1)
     assert b.ndim == a1.ndim
     assert b.shape == (3, 1)
     assert_array_equal(b.i[:, 0], a2)
+    assert b.meta == meta
 
     # anonymous axes
     a1 = ndtest([Axis(3), Axis(2)])
-    a2 = ndtest(Axis(3))
+    a2 = ndtest(Axis(3), meta=meta)
     b = a2.broadcast_with(a1)
     assert b.ndim == a1.ndim
     assert b.shape == (3, 1)
     assert_array_equal(b.i[:, 0], a2)
+    assert b.meta == meta
 
     a1 = ndtest([Axis(1), Axis(3)])
-    a2 = ndtest([Axis(3), Axis(1)])
+    a2 = ndtest([Axis(3), Axis(1)], meta=meta)
     b = a2.broadcast_with(a1)
     assert b.ndim == 2
     # common axes are reordered according to target (a1 in this case)
     assert b.shape == (1, 3)
     assert_larray_equiv(b, a2)
+    assert b.meta == meta
 
     a1 = ndtest([Axis(2), Axis(3)])
-    a2 = ndtest([Axis(3), Axis(2)])
+    a2 = ndtest([Axis(3), Axis(2)], meta=meta)
     b = a2.broadcast_with(a1)
     assert b.ndim == 2
     assert b.shape == (2, 3)
     assert_larray_equiv(b, a2)
+    assert b.meta == meta
 
 def test_plot():
     pass
@@ -4013,16 +4121,17 @@ def test_plot():
     #large.plot()
     #large.hist()
 
-def test_combine_axes():
+def test_combine_axes(meta):
     # combine N axes into 1
     # =====================
-    arr = ndtest((2, 3, 4, 5))
+    arr = ndtest((2, 3, 4, 5), meta=meta)
     res = arr.combine_axes((X.a, X.b))
     assert res.axes.names == ['a_b', 'c', 'd']
     assert res.size == arr.size
     assert res.shape == (2 * 3, 4, 5)
     assert_array_equal(res.axes.a_b.labels[:2], ['a0_b0', 'a0_b1'])
     assert_array_equal(res['a1_b0'], arr['a1', 'b0'])
+    assert res.meta == meta
 
     res = arr.combine_axes((X.a, X.c))
     assert res.axes.names == ['a_c', 'b', 'd']
@@ -4030,6 +4139,7 @@ def test_combine_axes():
     assert res.shape == (2 * 4, 3, 5)
     assert_array_equal(res.axes.a_c.labels[:2], ['a0_c0', 'a0_c1'])
     assert_array_equal(res['a1_c0'], arr['a1', 'c0'])
+    assert res.meta == meta
 
     res = arr.combine_axes((X.b, X.d))
     assert res.axes.names == ['a', 'b_d', 'c']
@@ -4037,10 +4147,11 @@ def test_combine_axes():
     assert res.shape == (2, 3 * 5, 4)
     assert_array_equal(res.axes.b_d.labels[:2], ['b0_d0', 'b0_d1'])
     assert_array_equal(res['b1_d0'], arr['b1', 'd0'])
+    assert res.meta == meta
 
     # combine M axes into N
     # =====================
-    arr = ndtest((2, 3, 4, 4, 3, 2))
+    arr = ndtest((2, 3, 4, 4, 3, 2), meta=meta)
 
     # using a list of tuples
     res = arr.combine_axes([('a', 'c'), ('b', 'f'), ('d', 'e')])
@@ -4051,6 +4162,7 @@ def test_combine_axes():
     assert list(res.axes.b_f.labels[:2]) == ['b0_f0', 'b0_f1']
     assert list(res.axes.d_e.labels[:2]) == ['d0_e0', 'd0_e1']
     assert res['a0_c2', 'b1_f1', 'd3_e2'] == arr['a0', 'b1', 'c2', 'd3', 'e2', 'f1']
+    assert res.meta == meta
 
     res = arr.combine_axes([('a', 'c'), ('b', 'e', 'f')])
     assert res.axes.names == ['a_c', 'b_e_f', 'd']
@@ -4058,45 +4170,51 @@ def test_combine_axes():
     assert res.shape == (2 * 4, 3 * 3 * 2, 4)
     assert list(res.axes.b_e_f.labels[:4]) == ['b0_e0_f0', 'b0_e0_f1', 'b0_e1_f0', 'b0_e1_f1']
     assert_array_equal(res['a0_c2', 'b1_e2_f1'], arr['a0', 'b1', 'c2', 'e2', 'f1'])
+    assert res.meta == meta
 
     # using a dict (-> user defined axes names)
     res = arr.combine_axes({('a', 'c'): 'AC', ('b', 'f'): 'BF', ('d', 'e'): 'DE'})
     assert res.axes.names == ['AC', 'BF', 'DE']
     assert res.size == arr.size
     assert res.shape == (2 * 4, 3 * 2, 4 * 3)
+    assert res.meta == meta
 
     res = arr.combine_axes({('a', 'c'): 'AC', ('b', 'e', 'f'): 'BEF'})
     assert res.axes.names == ['AC', 'BEF', 'd']
     assert res.size == arr.size
     assert res.shape == (2 * 4, 3 * 3 * 2, 4)
+    assert res.meta == meta
 
-def test_split_axes():
+def test_split_axes(meta):
     # split one axis
     # ==============
 
     # default sep
-    arr = ndtest((2, 3, 4, 5))
+    arr = ndtest((2, 3, 4, 5), meta=meta)
     combined = arr.combine_axes(('b', 'd'))
     assert combined.axes.names == ['a', 'b_d', 'c']
     res = combined.split_axes('b_d')
     assert res.axes.names == ['a', 'b', 'd', 'c']
     assert res.shape == (2, 3, 5, 4)
     assert_array_equal(res.transpose('a', 'b', 'c', 'd'), arr)
+    assert res.meta == meta
 
     # regex
     res = combined.split_axes('b_d', names=['b', 'd'], regex='(\w+)_(\w+)')
     assert res.axes.names == ['a', 'b', 'd', 'c']
     assert res.shape == (2, 3, 5, 4)
     assert_array_equal(res.transpose('a', 'b', 'c', 'd'), arr)
+    assert res.meta == meta
 
     # custom sep
-    combined = ndtest('a|b=a0|b0,a0|b1')
+    combined = ndtest('a|b=a0|b0,a0|b1', meta=meta)
     res = combined.split_axes(sep='|')
     assert_array_equal(res, ndtest('a=a0;b=b0,b1'))
+    assert res.meta == meta
 
     # split several axes at once
     # ==========================
-    arr = ndtest('a_b=a0_b0..a1_b2; c=c0..c3; d=d0..d3; e_f=e0_f0..e2_f1')
+    arr = ndtest('a_b=a0_b0..a1_b2; c=c0..c3; d=d0..d3; e_f=e0_f0..e2_f1', meta=meta)
 
     # using a list of tuples
     res = arr.split_axes(['a_b', 'e_f'])
@@ -4108,6 +4226,7 @@ def test_split_axes():
     assert list(res.axes.e.labels) == ['e0', 'e1', 'e2']
     assert list(res.axes.f.labels) == ['f0', 'f1']
     assert res['a0', 'b1', 'c2', 'd3', 'e2', 'f1'] == arr['a0_b1', 'c2', 'd3', 'e2_f1']
+    assert res.meta == meta
 
     # default to all axes with name containing the delimiter _
     assert_array_equal(arr.split_axes(), res)
@@ -4117,9 +4236,10 @@ def test_split_axes():
     assert res.axes.names == ['A', 'B', 'c', 'd', 'E', 'F']
     assert res.size == arr.size
     assert res.shape == (2, 3, 4, 4, 3, 2)
+    assert res.meta == meta
 
     # split an axis in more than 2 axes
-    arr = ndtest('a_b_c=a0_b0_c0..a1_b2_c3; d=d0..d3; e_f=e0_f0..e2_f1')
+    arr = ndtest('a_b_c=a0_b0_c0..a1_b2_c3; d=d0..d3; e_f=e0_f0..e2_f1', meta=meta)
     res = arr.split_axes(['a_b_c', 'e_f'])
     assert res.axes.names == ['a', 'b', 'c', 'd', 'e', 'f']
     assert res.size == arr.size
@@ -4129,15 +4249,17 @@ def test_split_axes():
     assert list(res.axes.e.labels) == ['e0', 'e1', 'e2']
     assert list(res.axes.f.labels) == ['f0', 'f1']
     assert res['a0', 'b1', 'c2', 'd3', 'e2', 'f1'] == arr['a0_b1_c2', 'd3', 'e2_f1']
+    assert res.meta == meta
 
     # split an axis in more than 2 axes + passing a dict
     res = arr.split_axes({'a_b_c': ('A', 'B', 'C'), 'e_f': ('E', 'F')})
     assert res.axes.names == ['A', 'B', 'C', 'd', 'E', 'F']
     assert res.size == arr.size
     assert res.shape == (2, 3, 4, 4, 3, 2)
+    assert res.meta == meta
 
     # using regex
-    arr = ndtest('ab=a0b0..a1b2; c=c0..c3; d=d0..d3; ef=e0f0..e2f1')
+    arr = ndtest('ab=a0b0..a1b2; c=c0..c3; d=d0..d3; ef=e0f0..e2f1', meta=meta)
     res = arr.split_axes({'ab': ('a', 'b'), 'ef': ('e', 'f')}, regex='(\w{2})(\w{2})')
     assert res.axes.names == ['a', 'b', 'c', 'd', 'e', 'f']
     assert res.size == arr.size
@@ -4147,6 +4269,7 @@ def test_split_axes():
     assert list(res.axes.e.labels) == ['e0', 'e1', 'e2']
     assert list(res.axes.f.labels) == ['f0', 'f1']
     assert res['a0', 'b1', 'c2', 'd3', 'e2', 'f1'] == arr['a0b1', 'c2', 'd3', 'e2f1']
+    assert res.meta == meta
 
     # labels with object dtype
     arr = ndtest((2, 2, 2)).combine_axes(('a', 'b'))
@@ -4160,7 +4283,7 @@ def test_split_axes():
     assert_array_equal(res, ndtest((2, 2, 2)))
 
     # not sorted by first part then second part (issue #364)
-    arr = ndtest((2, 3))
+    arr = ndtest((2, 3), meta=meta)
     combined = arr.combine_axes()['a0_b0, a1_b0, a0_b1, a1_b1, a0_b2, a1_b2']
     assert_array_equal(combined.split_axes('a_b'), arr)
 
@@ -4179,7 +4302,7 @@ def test_split_axes():
     expected = ndtest('a=a0,a1;b=b0,b1;c=a0,a1;d=b0,b1')
     assert_array_equal(combined.split_axes(('a_b', 'c_d')), expected)
 
-def test_stack():
+def test_stack(meta):
     # simple
     arr0 = ndtest(3)
     arr1 = ndtest(3, start=-1)
@@ -4188,8 +4311,9 @@ def test_stack():
     expected = LArray([[0, -1],
                        [1,  0],
                        [2,  1]], [a, b])
-    res = stack((arr0, arr1), b)
+    res = stack((arr0, arr1), b, meta=meta)
     assert_array_equal(res, expected)
+    res.meta == meta
 
     # simple with anonymous axis
     arr0 = ndtest(Axis(3))
