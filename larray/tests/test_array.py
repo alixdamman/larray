@@ -2652,8 +2652,8 @@ def test_expand(meta):
     c = Axis('c=c1,c2')
     assert ndtest([a, b], meta=meta).expand([a, c, b]).meta == meta
 
-def test_hdf_roundtrip(tmpdir):
-    a = ndtest((2, 3))
+def test_hdf_roundtrip(tmpdir, meta):
+    a = ndtest((2, 3), meta=meta)
     fpath = tmp_path(tmpdir, 'test.h5')
     a.to_hdf(fpath, 'a')
     res = read_hdf(fpath, 'a')
@@ -2662,6 +2662,7 @@ def test_hdf_roundtrip(tmpdir):
     assert a.shape == (2, 3)
     assert a.axes.names == ['a', 'b']
     assert_array_equal(res, a)
+    assert res.meta == a.meta
 
     # issue 72: int-like strings should not be parsed (should round-trip correctly)
     fpath = tmp_path(tmpdir, 'issue72.h5')
