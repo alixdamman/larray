@@ -29,6 +29,32 @@ New features
     >>> a02.equals(a['a1:a3'] >> 'group_a')
     False
 
+* allowed arrays to have metadata (e.g. title, description, authors, ...).
+  Metadata can be accesed using the syntax ``array.meta.name`` or ``array.meta[name]``.
+  Warning: currently, only saving and loading to/from HDF file support metadata.
+  See below for use cases:
+
+    >>> # add metadata to/from an array
+    >>> arr = ndtest((3, 3), meta=OrderedDict([('title', 'array for testing'), ('author', 'John Smith')])
+
+    >>> # access an item
+    >>> arr.meta.author
+    'John Smith'
+    >>> # or
+    >>> arr.meta['author']
+    'John Smith'
+
+    >>> # update/add an item (the item is added if not found in existing metadata)
+    >>> arr.meta.city = 'London'
+    >>> # or
+    >>> arr.meta['city'] = 'London'
+
+    >>> # delete an item
+    >>> del arr.meta.city
+    >>> # or
+    >>> del arr.meta['city']
+
+  Closes :issue:`78` and :issue:`79`.
 
 .. _misc:
 
