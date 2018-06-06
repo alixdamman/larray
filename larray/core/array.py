@@ -7220,10 +7220,6 @@ def zeros_like(array, title=None, dtype=None, order='K', meta=None):
      a0   0   0   0
      a1   0   0   0
     """
-    if not title:
-        title = array.title
-    if meta is None:
-        meta = array.meta
     return LArray(np.zeros_like(array, dtype, order), array.axes, title, meta=meta)
 
 
@@ -7295,10 +7291,6 @@ def ones_like(array, title=None, dtype=None, order='K', meta=None):
      a1   1   1   1
     """
     axes = array.axes
-    if not title:
-        title = array.title
-    if meta is None:
-        meta = array.meta
     return LArray(np.ones_like(array, dtype, order), axes, title, meta=meta)
 
 
@@ -7370,10 +7362,6 @@ def empty_like(array, title=None, dtype=None, order='K', meta=None):
      a1  1.06099789568e-313  1.48539705397e-313
      a2  1.90979621226e-313  2.33419537056e-313
     """
-    if not title:
-        title = array.title
-    if meta is None:
-        meta = array.meta
     # cannot use empty() because order == 'K' is not understood
     return LArray(np.empty_like(array.data, dtype, order), array.axes, title, meta=meta)
 
@@ -7463,10 +7451,6 @@ def full_like(array, fill_value, title=None, dtype=None, order='K', meta=None):
      a0   5   5   5
      a1   5   5   5
     """
-    if not title:
-        title = array.title
-    if meta is None:
-        meta = array.meta
     # cannot use full() because order == 'K' is not understood
     # cannot use np.full_like() because it would not handle LArray fill_value
     res = empty_like(array, title, dtype, meta=meta)
