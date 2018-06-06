@@ -1833,7 +1833,6 @@ class LArray(ABCLArray):
             return axis.i[key]
 
         res = self[tuple(sort_key(axis) for axis in axes)]
-        res.meta = self.meta
         return res
 
     sort_axis = renamed_to(sort_axes, 'sort_axis')
@@ -2156,12 +2155,6 @@ class LArray(ABCLArray):
                     if not np.isscalar(axis_key)]
 
     def __getitem__(self, key, collapse_slices=False):
-        """
-        Notes
-        -----
-        Does not keep metadata.
-        """
-
         if isinstance(key, ExprNode):
             key = key.evaluate(self.axes)
 
@@ -2172,7 +2165,7 @@ class LArray(ABCLArray):
 
         # FIXME: I have a huge problem with boolean labels + non points
         if isinstance(key, (LArray, np.ndarray)) and np.issubdtype(key.dtype, np.bool_):
-            return LArray(data[translated_key], self._bool_key_new_axes(translated_key))
+            return LArray(data[translated_key], self._bool_key_new_axes(translated_key), meta=self.meta)
 
         if any(isinstance(axis_key, LArray) for axis_key in translated_key):
             k2 = [k.data if isinstance(k, LArray) else k
@@ -2181,7 +2174,7 @@ class LArray(ABCLArray):
             axes = self._get_axes_from_translated_key(translated_key)
             first_col = AxisCollection(axes[0])
             res_axes = first_col.union(*axes[1:])
-            return LArray(res_data, res_axes)
+            return LArray(res_data, res_axes, meta=self.meta)
 
         # TODO: if the original key was a list of labels, subaxis(translated_key).labels == orig_key, so we should use
         #       orig_axis_key.copy()
@@ -2198,9 +2191,8 @@ class LArray(ABCLArray):
             # drop length 1 dimensions created by scalar keys
             res_data = data.reshape(tuple(len(axis) for axis in axes))
             assert _equal_modulo_len1(data.shape, res_data.shape)
-            return LArray(res_data, axes)
+            return LArray(res_data, axes, meta=self.meta)
 
-    # TODO: test if metadata are kept
     def __setitem__(self, key, value, collapse_slices=True):
         # TODO: if key or value has more axes than self, we should use
         # total_axes = self.axes + key.axes + value.axes
@@ -2708,9 +2700,7 @@ class LArray(ABCLArray):
 
         It is similar to np.take but works with several axes at once.
         """
-        res = self.__getitem__(kwargs, collapse)
-        res.meta = self.meta
-        return res
+        return self.__getitem__(kwargs, collapse)
 
     def _axis_aggregate(self, op, axes=(), keepaxes=False, out=None, **kwargs):
         """
@@ -6822,7 +6812,6 @@ class LArray(ABCLArray):
         for axis in res.axes:
             if (res == res[axis.i[0]]).all():
                 res = res[axis.i[0]]
-        res.meta = self.meta
         return res
 
     def combine_axes(self, axes=None, sep='_', wildcard=False):

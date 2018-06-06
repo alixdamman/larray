@@ -328,6 +328,7 @@ def test_getitem(array):
     assert subset.axes[1:] == (geo, sex, lipro)
     assert subset.axes[0].equals(Axis([1, 5, 9], 'age'))
     assert_array_equal(subset, raw[[1, 5, 9]])
+    assert subset.meta == array.meta
 
     # LGroup at "incorrect" place
     assert_array_equal(array[lipro159], raw[..., [0, 4, 8]])
@@ -336,11 +337,13 @@ def test_getitem(array):
     res = array[lipro159, age159]
     assert res.axes.names == ['age', 'geo', 'sex', 'lipro']
     assert_array_equal(res, raw[[1, 5, 9]][..., [0, 4, 8]])
+    assert res.meta == array.meta
 
     # LGroup key and scalar
     res = array[lipro159, 5]
     assert res.axes.names == ['geo', 'sex', 'lipro']
     assert_array_equal(res, raw[..., [0, 4, 8]][5])
+    assert res.meta == array.meta
 
     # mixed LGroup/positional key
     assert_array_equal(array[[1, 5, 9], lipro159],
@@ -360,17 +363,20 @@ def test_getitem(array):
     assert_array_equal(array['8, 10..13, 15'], array['8,10,11,12,13,15'])
 
     # ambiguous label
-    arr = ndtest("a=l0,l1;b=l1,l2")
+    arr = ndtest("a=l0,l1;b=l1,l2", meta=array.meta)
     res = arr[arr.b['l1']]
     assert_array_equal(res, arr.data[:, 0])
+    assert res.meta == arr.meta
 
     # scalar group on another axis
-    arr = ndtest((3, 2))
+    arr = ndtest((3, 2), meta=array.meta)
     alt_a = Axis("alt_a=a1..a2")
     lgroup = alt_a['a1']
     assert_array_equal(arr[lgroup], arr['a1'])
+    assert arr[lgroup].meta == array.meta
     pgroup = alt_a.i[0]
     assert_array_equal(arr[pgroup], arr['a1'])
+    assert arr[pgroup].meta == array.meta
 
     # key with duplicate axes
     with pytest.raises(ValueError):
@@ -392,6 +398,7 @@ def test_getitem_abstract_axes(array):
     assert subset.axes[1:] == (geo, sex, lipro)
     assert subset.axes[0].equals(Axis([1, 5, 9], 'age'))
     assert_array_equal(subset, raw[[1, 5, 9]])
+    assert subset.meta == array.meta
 
     # LGroup at "incorrect" place
     assert_array_equal(array[lipro159], raw[..., [0, 4, 8]])
@@ -437,6 +444,7 @@ def test_getitem_guess_axis(array):
     assert subset.axes[1:] == (geo, sex, lipro)
     assert subset.axes[0].equals(Axis([1, 5, 9], 'age'))
     assert_array_equal(subset, raw[[1, 5, 9]])
+    assert subset.meta == array.meta
 
     # key at "incorrect" place
     assert_array_equal(array['P01,P05,P09'], raw[..., [0, 4, 8]])
@@ -505,6 +513,7 @@ def test_getitem_positional_group(array):
     assert subset.axes[1:] == (geo, sex, lipro)
     assert subset.axes[0].equals(Axis([1, 5, 9], 'age'))
     assert_array_equal(subset, raw[[1, 5, 9]])
+    assert subset.meta == array.meta
 
     # LGroup at "incorrect" place
     assert_array_equal(array[lipro159], raw[..., [0, 4, 8]])
@@ -541,6 +550,7 @@ def test_getitem_abstract_positional(array):
     assert subset.axes[1:] == (geo, sex, lipro)
     assert subset.axes[0].equals(Axis([1, 5, 9], 'age'))
     assert_array_equal(subset, raw[[1, 5, 9]])
+    assert subset.meta == array.meta
 
     # LGroup at "incorrect" place
     assert_array_equal(array[lipro159], raw[..., [0, 4, 8]])
@@ -566,8 +576,8 @@ def test_getitem_abstract_positional(array):
     with pytest.raises(ValueError, message="key has several values for axis: age"):
         array[X.age.i[2, 3], X.age.i[1, 5]]
 
-def test_getitem_bool_larray_key():
-    arr = ndtest((3, 2, 4))
+def test_getitem_bool_larray_key(meta):
+    arr = ndtest((3, 2, 4), meta=meta)
     raw = arr.data
 
     # all dimensions
@@ -575,6 +585,7 @@ def test_getitem_bool_larray_key():
     assert isinstance(res, LArray)
     assert res.ndim == 1
     assert_array_equal(res, raw[raw < 5])
+    assert res.meta == arr.meta
 
     # missing dimension
     filt = arr['b1'] % 5 == 0
@@ -586,14 +597,15 @@ def test_getitem_bool_larray_key():
     raw_d1, raw_d3 = raw_key.nonzero()
     assert_array_equal(res, raw[raw_d1, :, raw_d3])
 
-def test_getitem_bool_larray_and_group_key():
-    arr = ndtest((3, 6, 4)).set_labels('b', '0..5')
+def test_getitem_bool_larray_and_group_key(meta):
+    arr = ndtest((3, 6, 4), meta=meta).set_labels('b', '0..5')
 
     # using axis
     res = arr['a0,a2', arr.b < 3, 'c0:c3']
     assert isinstance(res, LArray)
     assert res.ndim == 3
     assert_array_equal(res, arr['a0,a2', '0:2', 'c0:c3'])
+    assert res.meta == arr.meta
 
     # using axis reference
     res = arr['a0,a2', X.b < 3, 'c0:c3']
@@ -607,13 +619,15 @@ def test_getitem_bool_ndarray_key(array):
     assert isinstance(res, LArray)
     assert res.ndim == 1
     assert_array_equal(res, raw[raw < 5])
+    assert res.meta == array.meta
 
-def test_getitem_bool_anonymous_axes():
-    a = ndtest([Axis(2), Axis(3), Axis(4), Axis(5)])
+def test_getitem_bool_anonymous_axes(meta):
+    a = ndtest([Axis(2), Axis(3), Axis(4), Axis(5)], meta=meta)
     mask = ones(a.axes[1, 3], dtype=bool)
     res = a[mask]
     assert res.ndim == 3
     assert res.shape == (15, 2, 4)
+    assert res.meta == meta
 
     # XXX: we might want to transpose the result to always move combined axes to the front
     a = ndtest([Axis(2), Axis(3), Axis(4), Axis(5)])
