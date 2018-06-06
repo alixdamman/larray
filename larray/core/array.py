@@ -912,9 +912,8 @@ class LArray(ABCLArray):
         self.__dict__ = d
 
     def __dir__(self):
-        metadata = set(self.meta.keys())
         axis_names = set(axis.name for axis in self.axes if axis.name is not None)
-        return list(set(dir(self.__class__)) | set(self.__dict__.keys()) | axis_names | metadata)
+        return list(set(dir(self.__class__)) | set(self.__dict__.keys()) | axis_names)
 
     def _ipython_key_completions_(self):
         return list(chain(*[list(labels) for labels in self.axes.labels]))
