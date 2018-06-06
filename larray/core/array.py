@@ -264,6 +264,7 @@ def concat(arrays, axis=0, dtype=None, meta=None):
     meta : list of pairs or dict or OrderedDict or Metadata, optional
         Metadata (title, description, author, creation_date, ...) associated with the output array.
         Keys must be strings. Values must be of type string, int, float, date, time or datetime.
+        If None, metadata of the first array will transferred to the output array.
 
     Returns
     -------
@@ -290,6 +291,9 @@ def concat(arrays, axis=0, dtype=None, meta=None):
      a0   0   1   2   0   0   1
      a1   3   4   5   1   0   1
     """
+    if meta is None:
+        meta = arrays[0].meta
+
     # Get axis by name, so that we do *NOT* check they are "compatible", because it makes sense to append axes of
     # different length
     name = arrays[0].axes[axis].name
