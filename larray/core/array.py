@@ -1275,7 +1275,7 @@ class LArray(ABCLArray):
         cases.
         """
         data = np.ndarray.__array_wrap__(self.data, out_arr, context)
-        return LArray(data, self.axes, meta=self.meta)
+        return LArray(data, self.axes)
 
     def __bool__(self):
         return bool(self.data)
