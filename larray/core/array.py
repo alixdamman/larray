@@ -905,11 +905,9 @@ class LArray(ABCLArray):
 
     # needed to make *un*pickling work (because otherwise, __getattr__ is called before .axes exists, which leads to
     # an infinite recursion)
-    # TODO: include metadata
     def __getstate__(self):
         return self.__dict__
 
-    # TODO: include metadata
     def __setstate__(self, d):
         self.__dict__ = d
 
