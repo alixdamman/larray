@@ -6633,7 +6633,7 @@ class LArray(ABCLArray):
             return LArray(self.data, axes, meta=self.meta)
 
     def astype(self, dtype, order='K', casting='unsafe', subok=True, copy=True):
-        return LArray(self.data.astype(dtype, order, casting, subok, copy), self.axes)
+        return LArray(self.data.astype(dtype, order, casting, subok, copy), self.axes, meta=self.meta)
     astype.__doc__ = np.ndarray.astype.__doc__
 
     def shift(self, axis, n=1):
