@@ -46,7 +46,6 @@ __all__ = [
     'inverse',
 ]
 
-# TODO: keep metadata for clip, round, ...?
 def broadcastify(func):
     # intentionally not using functools.wraps, because it does not work for wrapping a function from another module
     def wrapper(*args, **kwargs):
