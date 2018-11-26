@@ -279,17 +279,12 @@ Copying
 Inspecting
 ----------
 
-=================== ==============================================================
-LArray.data         Data of the array (Numpy ndarray)
-------------------- --------------------------------------------------------------
-LArray.axes         Axes of the array (AxisCollection)
-------------------- --------------------------------------------------------------
-LArray.title        Title of the array (str)
-=================== ==============================================================
-
 .. autosummary::
    :toctree: _generated/
 
+   LArray.data
+   LArray.axes
+   LArray.meta
    LArray.info
    LArray.shape
    LArray.ndim

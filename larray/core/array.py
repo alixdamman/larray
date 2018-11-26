@@ -666,25 +666,41 @@ class LArray(ABCLArray):
 
     def __init__(self, data, axes=None, title=None, meta=None):
         data = np.asarray(data)
-        ndim = data.ndim
+        self._data = data
+
         if axes is None:
             axes = AxisCollection(data.shape)
-        else:
-            if not isinstance(axes, AxisCollection):
-                axes = AxisCollection(axes)
-            if axes.ndim != ndim:
-                raise ValueError("number of axes (%d) does not match "
-                                 "number of dimensions of data (%d)"
-                                 % (axes.ndim, ndim))
-            if axes.shape != data.shape:
-                raise ValueError("length of axes %s does not match "
-                                 "data shape %s" % (axes.shape, data.shape))
-
-        self.data = data
         self.axes = axes
 
         meta = _handle_deprecated_argument_title(meta, title)
         self.meta = meta
+
+    @property
+    def axes(self):
+        """axes of the array (AxisCollection)."""
+        return self._axes
+
+    @axes.setter
+    def axes(self, axes):
+        if not isinstance(axes, AxisCollection):
+            axes = AxisCollection(axes)
+        if axes.ndim != self.ndim:
+            raise ValueError("number of axes ({}) does not match "
+                             "number of dimensions of data ({})".format(axes.ndim, self.ndim))
+        self._axes = axes
+
+    @property
+    def data(self):
+        """data of the array (Numpy ndarray)."""
+        return self._data
+
+    @data.setter
+    def data(self, data):
+        data = np.asarray(data)
+        if self.axes.shape != data.shape:
+            raise ValueError("length of axes {} does not match "
+                             "data shape {}".format(self.axes.shape, data.shape))
+        self._data = data
 
     @property
     def title(self):
