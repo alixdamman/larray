@@ -20,15 +20,13 @@ Axis
 Exploring
 ---------
 
-=========================== ==============================================================
-Axis.name                   Name of the axis. None in the case of an anonymous axis.
---------------------------- --------------------------------------------------------------
-:attr:`Axis.labels`         Labels of the axis.
---------------------------- --------------------------------------------------------------
-:attr:`Axis.labels_summary` Short representation of the labels.
---------------------------- --------------------------------------------------------------
-:attr:`Axis.dtype`          Data type for the axis labels.
-=========================== ==============================================================
+.. autosummary::
+   :toctree: _generated/
+
+   Axis.name
+   Axis.labels
+   Axis.labels_summary
+   Axis.dtype
 
 Copying
 -------

@@ -94,11 +94,7 @@ class Axis(ABCAxis):
                               "as second argument.", FutureWarning, stacklevel=2)
                 name, labels = labels, name
 
-        # make sure we do not have np.str_ as it causes problems down the
-        # line with xlwings. Cannot use isinstance to check that though.
-        is_python_str = type(name) is unicode or type(name) is bytes
-        assert name is None or isinstance(name, int) or is_python_str, type(name)
-        self.name = name
+        self._name = None
         self._labels = None
         self.__mapping = None
         self.__sorted_keys = None
@@ -106,6 +102,20 @@ class Axis(ABCAxis):
         self._length = None
         self._iswildcard = False
         self.labels = labels
+        self.name = name
+
+    @property
+    def name(self):
+        """name of the axis. None in the case of an anonymous axis."""
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        # make sure we do not have np.str_ as it causes problems down the
+        # line with xlwings. Cannot use isinstance to check that though.
+        is_python_str = type(name) is unicode or type(name) is bytes
+        assert name is None or isinstance(name, int) or is_python_str, type(name)
+        self._name = name
 
     @property
     def _mapping(self):
@@ -1330,6 +1340,7 @@ class Axis(ABCAxis):
 
     @property
     def dtype(self):
+        """Data type for the axis labels."""
         return self._labels.dtype
 
     def ignore_labels(self):
