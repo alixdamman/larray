@@ -12,7 +12,7 @@ from larray.tests.common import (assert_array_nan_equal, inputpath, tmp_path, me
                                  needs_xlwings, needs_pytables, needs_xlrd)
 from larray.inout.common import _supported_scalars_types
 from larray import (Session, Axis, Array, Group, isnan, zeros_like, ndtest, ones_like, ones, full,
-                    local_arrays, global_arrays, arrays)
+                    full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ArrayDef)
 from larray.util.compat import pickle, PY2
 
 
@@ -33,10 +33,12 @@ def assertObjListEqual(got, expected):
 
 a = Axis('a=a0..a2')
 a2 = Axis('a=a0..a4')
+a3 = Axis('a=a0..a3')
 anonymous = Axis(4)
 a01 = a['a0,a1'] >> 'a01'
 ano01 = a['a0,a1']
 b = Axis('b=0..4')
+b2 = Axis('b=b0..b4')
 b024 = b[[0, 2, 4]] >> 'b024'
 c = 'c'
 d = {}
@@ -44,7 +46,12 @@ e = ndtest([(2, 'a'), (3, 'b')])
 _e = ndtest((3, 3))
 f = ndtest((Axis(3), Axis(2)))
 g = ndtest([(2, 'a'), (4, 'b')])
-h = ndtest(('a=a0..a2', 'b=b0..b4'))
+h = ndtest((a3, b2))
+k = ndtest((3, 3))
+
+# ########################### #
+#           SESSION           #
+# ########################### #
 
 
 @pytest.fixture()
@@ -171,13 +178,18 @@ def test_names(session):
     assert session.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024',
                              'c', 'd', 'e', 'f', 'g', 'h']
     # add them in the "wrong" order
-    session.add(i='i')
     session.add(j='j')
+    session.add(i='i')
     assert session.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024',
                              'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
 
 
-def _test_io(fpath, session, meta, engine):
+def _test_io(tmpdir, session, meta, engine, ext):
+    session_cls = session.__class__
+
+    filename = 'test_{}_{}{}'.format(session_cls.__name__, engine, ext)
+    fpath = tmp_path(tmpdir, filename)
+
     is_excel_or_csv = 'excel' in engine or 'csv' in engine
 
     kind = Array if is_excel_or_csv else (Axis, Group, Array) + _supported_scalars_types
@@ -187,7 +199,7 @@ def _test_io(fpath, session, meta, engine):
 
     # save and load
     session.save(fpath, engine=engine)
-    s = Session()
+    s = session_cls()
     s.load(fpath, engine=engine)
     # use Session.names instead of Session.keys because CSV, Excel and HDF do *not* keep ordering
     assert s.names == session.names
@@ -199,33 +211,36 @@ def _test_io(fpath, session, meta, engine):
         assert s.meta == meta
 
     # update a Group + an Axis + an array (overwrite=False)
-    a3 = Axis('a=0..3')
-    a3_01 = a3['0,1'] >> 'a01'
-    e2 = ndtest((a3, 'b=b0..b2'))
-    Session(a=a3, a01=a3_01, e=e2).save(fpath, overwrite=False, engine=engine)
-    s = Session()
+    a4 = Axis('a=0..3')
+    a4_01 = a3['0,1'] >> 'a01'
+    e2 = ndtest((a4, 'b=b0..b2'))
+    h2 = full_like(h, fill_value=10)
+    session_cls(a=a4, a01=a4_01, e=e2, h=h2).save(fpath, overwrite=False, engine=engine)
+    s = session_cls()
     s.load(fpath, engine=engine)
     if engine == 'pandas_excel':
         # Session.save() via engine='pandas_excel' always overwrite the output Excel files
-        assert s.names == ['e']
+        assert s.names == ['e', 'h']
     elif is_excel_or_csv:
         assert s.names == ['e', 'f', 'g', 'h']
     else:
         assert s.names == session.names
-        assert s['a'].equals(a3)
-        assert s['a01'].equals(a3_01)
+        assert s['a'].equals(a4)
+        assert s['a01'].equals(a4_01)
     assert_array_nan_equal(s['e'], e2)
     if engine != 'pandas_excel':
         assert s.meta == meta
 
     # load only some objects
     session.save(fpath, engine=engine)
-    s = Session()
+    s = session_cls()
     names_to_load = ['e', 'f'] if is_excel_or_csv else ['a', 'a01', 'a2', 'anonymous', 'e', 'f']
     s.load(fpath, names=names_to_load, engine=engine)
     assert s.names == names_to_load
     if engine != 'pandas_excel':
         assert s.meta == meta
+
+    return fpath
 
 
 def _add_scalars_to_session(s):
@@ -243,32 +258,29 @@ def _add_scalars_to_session(s):
 @needs_pytables
 def test_h5_io(tmpdir, session, meta):
     session = _add_scalars_to_session(session)
-    fpath = tmp_path(tmpdir, 'test_session.h5')
-    _test_io(fpath, session, meta, engine='pandas_hdf')
+    _test_io(tmpdir, session, meta, engine='pandas_hdf', ext='.h5')
 
 
 @needs_xlrd
 def test_xlsx_pandas_io(tmpdir, session, meta):
-    fpath = tmp_path(tmpdir, 'test_session.xlsx')
-    _test_io(fpath, session, meta, engine='pandas_excel')
+    _test_io(tmpdir, session, meta, engine='pandas_excel', ext='.xlsx')
 
 
 @needs_xlwings
 def test_xlsx_xlwings_io(tmpdir, session, meta):
-    fpath = tmp_path(tmpdir, 'test_session.xlsx')
-    _test_io(fpath, session, meta, engine='xlwings_excel')
+    _test_io(tmpdir, session, meta, engine='xlwings_excel', ext='.xlsx')
 
 
 def test_csv_io(tmpdir, session, meta):
-    fpath = tmp_path(tmpdir, 'test_session_csv')
+    session_cls = session.__class__
     try:
-        _test_io(fpath, session, meta, engine='pandas_csv')
+        fpath = _test_io(tmpdir, session, meta, engine='pandas_csv', ext='csv')
 
-        names = session.filter(kind=Array).names
+        names = session_cls({k: v for k, v in session.items() if isinstance(v, Array)}).names
 
         # test loading with a pattern
         pattern = os.path.join(fpath, '*.csv')
-        s = Session(pattern)
+        s = session_cls(pattern)
         assert s.names == names
         assert s.meta == meta
 
@@ -279,10 +291,10 @@ def test_csv_io(tmpdir, session, meta):
 
         # try loading the directory with the invalid file
         with pytest.raises(pd.errors.ParserError) as e_info:
-            s = Session(pattern)
+            s = session_cls(pattern)
 
         # test loading a pattern, ignoring invalid/unsupported files
-        s = Session()
+        s = session_cls()
         s.load(pattern, ignore_exceptions=True)
         assert s.names == names
         assert s.meta == meta
@@ -292,121 +304,142 @@ def test_csv_io(tmpdir, session, meta):
 
 def test_pickle_io(tmpdir, session, meta):
     session = _add_scalars_to_session(session)
-    fpath = tmp_path(tmpdir, 'test_session.pkl')
-    _test_io(fpath, session, meta, engine='pickle')
+    _test_io(tmpdir, session, meta, engine='pickle', ext='.pkl')
 
 
-def test_to_globals(session):
-    with pytest.warns(RuntimeWarning) as caught_warnings:
-        session.to_globals()
-    assert len(caught_warnings) == 1
-    assert caught_warnings[0].message.args[0] == "Session.to_globals should usually only be used in interactive " \
-                                                 "consoles and not in scripts. Use warn=False to deactivate this " \
-                                                 "warning."
-    assert caught_warnings[0].filename == __file__
-
-    assert a is session.a
-    assert b is session.b
-    assert c is session.c
-    assert d is session.d
-    assert e is session.e
-    assert f is session.f
-    assert g is session.g
-
-    # test inplace
-    backup_dest = e
-    backup_value = session.e.copy()
-    session.e = zeros_like(e)
-    session.to_globals(inplace=True, warn=False)
-    # check the variable is correct (the same as before)
-    assert e is backup_dest
-    assert e is not session.e
-    # check the content has changed
-    assert_array_nan_equal(e, session.e)
-    assert not e.equals(backup_value)
-    # reset e to its original value
-    e[:] = backup_value
+def test_pickle_roundtrip(session, meta):
+    original = session.filter(kind=Array)
+    original.meta = meta
+    s = pickle.dumps(original)
+    res = pickle.loads(s)
+    assert res.equals(original)
+    assert res.meta == meta
 
 
 def test_element_equals(session):
-    sess = session.filter(kind=(Axis, Group, Array))
-    expected = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                        ('a01', a01), ('ano01', ano01), ('e', e), ('g', g), ('f', f), ('h', h)])
-    assert all(sess.element_equals(expected))
+    session_cls = session.__class__
+    other_session = session_cls([(key, value) for key, value in session.items()])
 
-    other = Session([('a', a), ('a2', a2), ('anonymous', anonymous),
-                     ('a01', a01), ('ano01', ano01), ('e', e), ('f', f), ('h', h)])
-    res = sess.element_equals(other)
-    assert res.ndim == 1
-    assert res.axes.names == ['name']
-    assert np.array_equal(res.axes.labels[0], ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01',
-                                               'e', 'g', 'f', 'h'])
-    assert list(res) == [False, False, True, True, True, True, True, True, False, True, True]
+    keys = [key for key, value in session.items() if isinstance(value, (Axis, Group, Array))]
+    expected_res = full(Axis(keys, 'name'), fill_value=True, dtype=bool)
 
-    e2 = e.copy()
-    e2.i[1, 1] = 42
-    other = Session([('a', a), ('a2', a2), ('anonymous', anonymous),
-                     ('a01', a01), ('ano01', ano01), ('e', e2), ('f', f), ('h', h)])
-    res = sess.element_equals(other)
-    assert res.axes.names == ['name']
-    assert np.array_equal(res.axes.labels[0], ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01',
-                                               'e', 'g', 'f', 'h'])
-    assert list(res) == [False, False, True, True, True, True, True, False, False, True, True]
+    # ====== same sessions ======
+    res = session.element_equals(other_session)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
+
+    # ====== session with missing/extra items ======
+    # delete some items
+    for deleted_key in ['b', 'b024', 'g']:
+        del other_session[deleted_key]
+        expected_res[deleted_key] = False
+    # add one item
+    other_session['k'] = k
+    expected_res = expected_res.append('name', False, label='k')
+
+    res = session.element_equals(other_session)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
+
+    # ====== session with a modified array ======
+    h2 = h.copy()
+    h2['a1', 'b1'] = 42
+    other_session['h'] = h2
+    expected_res['h'] = False
+
+    res = session.element_equals(other_session)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
+
+
+def to_boolean_array_eq(res):
+    return stack([(key, item.all() if isinstance(item, Array) else item)
+                  for key, item in res.items()], 'name')
 
 
 def test_eq(session):
-    sess = session.filter(kind=(Axis, Group, Array))
-    expected = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                        ('a01', a01), ('ano01', ano01), ('e', e), ('g', g), ('f', f), ('h', h)])
-    assert all([item.all() if isinstance(item, Array) else item
-                for item in (sess == expected).values()])
+    session_cls = session.__class__
+    other_session = session_cls([(key, value) for key, value in session.items()])
+    expected_res = full(Axis(list(session.keys()), 'name'), fill_value=True, dtype=bool)
 
-    other = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                     ('a01', a01), ('ano01', ano01), ('e', e), ('f', f), ('h', h)])
-    res = sess == other
-    assert list(res.keys()) == ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01',
-                                'e', 'g', 'f', 'h']
-    assert [item.all() if isinstance(item, Array) else item
-            for item in res.values()] == [True, True, True, True, True, True, True, True, False, True, True]
+    # ====== same sessions ======
+    res = session == other_session
+    res = to_boolean_array_eq(res)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
 
-    e2 = e.copy()
-    e2.i[1, 1] = 42
-    other = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                     ('a01', a01), ('ano01', ano01), ('e', e2), ('f', f), ('h', h)])
-    res = sess == other
-    assert [item.all() if isinstance(item, Array) else item
-            for item in res.values()] == [True, True, True, True, True, True, True, False, False, True, True]
+    # ====== session with missing/extra items ======
+    del other_session['g']
+    expected_res['g'] = False
+    other_session['k'] = k
+    expected_res = expected_res.append('name', False, label='k')
+
+    res = session == other_session
+    res = to_boolean_array_eq(res)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
+
+    # ====== session with a modified array ======
+    h2 = h.copy()
+    h2['a1', 'b1'] = 42
+    other_session['h'] = h2
+    expected_res['h'] = False
+
+    res = session == other_session
+    assert res['h'].equals(session['h'] == other_session['h'])
+    res = to_boolean_array_eq(res)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
+
+
+def to_boolean_array_ne(res):
+    return stack([(key, item.any() if isinstance(item, Array) else item)
+                  for key, item in res.items()], 'name')
 
 
 def test_ne(session):
-    sess = session.filter(kind=(Axis, Group, Array))
-    expected = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                        ('a01', a01), ('ano01', ano01), ('e', e), ('g', g), ('f', f), ('h', h)])
-    assert ([(~item).all() if isinstance(item, Array) else not item
-             for item in (sess != expected).values()])
+    session_cls = session.__class__
+    other_session = session_cls([(key, value) for key, value in session.items()])
+    expected_res = full(Axis(list(session.keys()), 'name'), fill_value=False, dtype=bool)
 
-    other = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                     ('a01', a01), ('ano01', ano01), ('e', e), ('f', f), ('h', h)])
-    res = sess != other
-    assert list(res.keys()) == ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01',
-                                'e', 'g', 'f', 'h']
-    assert [(~item).all() if isinstance(item, Array) else not item
-            for item in res.values()] == [True, True, True, True, True, True, True, True, False, True, True]
+    # ====== same sessions ======
+    res = session != other_session
+    res = to_boolean_array_ne(res)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
 
-    e2 = e.copy()
-    e2.i[1, 1] = 42
-    other = Session([('b', b), ('b024', b024), ('a', a), ('a2', a2), ('anonymous', anonymous),
-                     ('a01', a01), ('ano01', ano01), ('e', e2), ('f', f), ('h', h)])
-    res = sess != other
-    assert [(~item).all() if isinstance(item, Array) else not item
-            for item in res.values()] == [True, True, True, True, True, True, True, False, False, True, True]
+    # ====== session with missing/extra items ======
+    del other_session['g']
+    expected_res['g'] = True
+    other_session['k'] = k
+    expected_res = expected_res.append('name', True, label='k')
+
+    res = session != other_session
+    res = to_boolean_array_ne(res)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
+
+    # ====== session with a modified array ======
+    h2 = h.copy()
+    h2['a1', 'b1'] = 42
+    other_session['h'] = h2
+    expected_res['h'] = True
+
+    res = session != other_session
+    assert res['h'].equals(session['h'] != other_session['h'])
+    res = to_boolean_array_ne(res)
+    assert res.axes == expected_res.axes
+    assert res.equals(expected_res)
 
 
 def test_sub(session):
     sess = session
+    session_cls = session.__class__
 
     # session - session
-    other = Session({'e': e - 1, 'f': ones_like(f)})
+    other = session_cls({'e': e, 'f': f})
+    other['e'] = e - 1
+    other['f'] = ones_like(f)
     diff = sess - other
     assert_array_nan_equal(diff['e'], np.full((2, 3), 1, dtype=np.int32))
     assert_array_nan_equal(diff['f'], f - ones_like(f))
@@ -436,12 +469,12 @@ def test_sub(session):
 
     # session - array
     axes = [a, b]
-    sess = Session([('a', a), ('a01', a01), ('c', c), ('e', ndtest(axes)),
-                    ('f', full(axes, fill_value=3)), ('g', ndtest('c=c0..c2'))])
-    diff = sess - ones(axes)
-    assert_array_nan_equal(diff['e'], sess['e'] - ones(axes))
-    assert_array_nan_equal(diff['f'], sess['f'] - ones(axes))
-    assert_array_nan_equal(diff['g'], sess['g'] - ones(axes))
+    other = session_cls([('a', a), ('a01', a01), ('c', c), ('e', ndtest((a, b))),
+                         ('f', full((a, b), fill_value=3)), ('g', ndtest('c=c0..c2'))])
+    diff = other - ones(axes)
+    assert_array_nan_equal(diff['e'], other['e'] - ones(axes))
+    assert_array_nan_equal(diff['f'], other['f'] - ones(axes))
+    assert_array_nan_equal(diff['g'], other['g'] - ones(axes))
     assert diff.a is a
     assert diff.a01 is a01
     assert diff.c is c
@@ -472,7 +505,11 @@ def test_rsub(session):
 
 def test_div(session):
     sess = session
-    other = Session({'e': e - 1, 'f': f + 1})
+    session_cls = session.__class__
+
+    other = session_cls({'e': e, 'f': f})
+    other['e'] = e - 1
+    other['f'] = f + 1
 
     with pytest.warns(RuntimeWarning) as caught_warnings:
         res = sess / other
@@ -511,13 +548,36 @@ def test_rdiv(session):
     assert res.c is c
 
 
-def test_pickle_roundtrip(session, meta):
-    original = session.filter(kind=Array)
-    original.meta = meta
-    s = pickle.dumps(original)
-    res = pickle.loads(s)
-    assert res.equals(original)
-    assert res.meta == meta
+def test_to_globals(session):
+    with pytest.warns(RuntimeWarning) as caught_warnings:
+        session.to_globals()
+    assert len(caught_warnings) == 1
+    assert caught_warnings[0].message.args[0] == "Session.to_globals should usually only be used in interactive " \
+                                                 "consoles and not in scripts. Use warn=False to deactivate this " \
+                                                 "warning."
+    assert caught_warnings[0].filename == __file__
+
+    assert a is session.a
+    assert b is session.b
+    assert c is session.c
+    assert d is session.d
+    assert e is session.e
+    assert f is session.f
+    assert g is session.g
+
+    # test inplace
+    backup_dest = e
+    backup_value = session.e.copy()
+    session.e = zeros_like(e)
+    session.to_globals(inplace=True, warn=False)
+    # check the variable is correct (the same as before)
+    assert e is backup_dest
+    assert e is not session.e
+    # check the content has changed
+    assert_array_nan_equal(e, session.e)
+    assert not e.equals(backup_value)
+    # reset e to its original value
+    e[:] = backup_value
 
 
 def test_local_arrays():
@@ -538,12 +598,12 @@ def test_local_arrays():
 def test_global_arrays():
     # exclude private global arrays
     s = global_arrays()
-    s_expected = Session([('e', e), ('f', f), ('g', g), ('h', h)])
+    s_expected = Session([('e', e), ('f', f), ('g', g), ('h', h), ('k', k)])
     assert s.equals(s_expected)
 
     # all global arrays
     s = global_arrays(include_private=True)
-    s_expected = Session([('e', e), ('_e', _e), ('f', f), ('g', g), ('h', h)])
+    s_expected = Session([('e', e), ('_e', _e), ('f', f), ('g', g), ('h', h), ('k', k)])
     assert s.equals(s_expected)
 
 
@@ -553,13 +613,250 @@ def test_arrays():
 
     # exclude private arrays
     s = arrays()
-    s_expected = Session([('e', e), ('f', f), ('g', g), ('h', h), ('i', i)])
+    s_expected = Session([('e', e), ('f', f), ('g', g), ('h', h), ('i', i), ('k', k)])
     assert s.equals(s_expected)
 
     # all arrays
     s = arrays(include_private=True)
-    s_expected = Session([('_e', _e), ('_i', _i), ('e', e), ('f', f), ('g', g), ('h', h), ('i', i)])
+    s_expected = Session([('_e', _e), ('_i', _i), ('e', e), ('f', f), ('g', g), ('h', h), ('i', i), ('k', k)])
     assert s.equals(s_expected)
+
+
+# ########################### #
+#        FROZENSESSION        #
+# ########################### #
+
+class TestConstrainedSession(ConstrainedSession):
+    b = Axis
+    b024 = Group
+    a = Axis
+    a2 = Axis
+    anonymous = Axis
+    a01 = Group
+    ano01 = Group
+    c = str
+    d = dict
+    e = Array
+    g = Array
+    f = Array
+    h = ArrayDef((a3, b2))
+
+
+@pytest.fixture()
+def typedsession():
+    ts = TestConstrainedSession()
+    ts.b = b
+    ts.b024 = b024
+    ts.a = a
+    ts.a2 = a2
+    ts.anonymous = anonymous
+    ts.a01 = a01
+    ts.ano01 = ano01
+    ts.c = c
+    ts.d = d
+    ts.e = e
+    ts.g = g
+    ts.f = f
+    ts.h = h
+    return ts
+
+
+class ConstrainedSessionDefinedAxis(ConstrainedSession):
+    a = Axis
+    h = ArrayDef(('a', b2))
+
+
+class ConstrainedSessionUndefinedAxis(ConstrainedSession):
+    b = Axis
+    h = ArrayDef(('a', b2))
+
+
+def test_create_typedsession_instance(meta):
+    ts = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h)
+    assert ts.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
+
+    # metadata
+    ts = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h,
+                                meta=meta)
+    assert ts.meta == meta
+
+    # load from file
+    ts = TestConstrainedSession(inputpath('test_session.h5'))
+    assert ts.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'e', 'f', 'g', 'h']
+
+    # one "array definition" depends on an axis which belongs to the class (and is defined at runtime) -> OK
+    ts = ConstrainedSessionDefinedAxis(a=a3, h=h)
+    assert ts.names == ['a', 'h']
+
+    # one "array definition" depends on an axis which does not belong to the class -> fails
+    expected_error_msg = "Axis 'a' not defined in '{}'".format(ConstrainedSessionUndefinedAxis.__name__)
+    with pytest.raises(ValueError) as error:
+        ts = ConstrainedSessionUndefinedAxis(b=b, h=h)
+    assert str(error.value) == expected_error_msg
+
+
+def test_getitem_ts(typedsession):
+    test_getitem(typedsession)
+
+
+def test_setitem_ts(typedsession):
+    ts = typedsession
+
+    # only change values of an array -> OK
+    ts['h'] = zeros_like(h)
+
+    # trying to add undeclared item -> prints a warning message
+    with pytest.warns(UserWarning) as caught_warnings:
+        ts['i'] = ndtest((3, 3))
+    assert len(caught_warnings) == 1
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts.__class__.__name__)
+
+    # trying to set an item with an object of different type -> should fail
+    expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
+    with pytest.raises(TypeError) as error:
+        ts['h'] = h.data
+    assert str(error.value) == expected_error_msg
+
+    #  trying to set an array using an array with wrong axes -> should fail
+    expected_error_msg = """\
+incompatible axes for array 'h':
+Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
+was declared as
+Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
+    with pytest.raises(ValueError) as error:
+        ts['h'] = h.append('a', 0, 'a4')
+    assert str(error.value) == expected_error_msg
+
+
+def test_getattr_ts(typedsession):
+    test_getattr(typedsession)
+
+
+def test_setattr_ts(typedsession):
+    ts = typedsession
+
+    # only change values of an array -> OK
+    ts.h = zeros_like(h)
+
+    # trying to add undeclared item -> prints a warning message
+    with pytest.warns(UserWarning) as caught_warnings:
+        ts.i = ndtest((3, 3))
+    assert len(caught_warnings) == 1
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts.__class__.__name__)
+
+    # trying to set an item with an object of different type -> should fail
+    expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
+    with pytest.raises(TypeError) as error:
+        ts.h = h.data
+    assert str(error.value) == expected_error_msg
+
+    #  trying to set an array using an array with wrong axes -> should fail
+    expected_error_msg = """\
+incompatible axes for array 'h':
+Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
+was declared as
+Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
+    with pytest.raises(ValueError) as error:
+        ts.h = h.append('a', 0, 'a4')
+    assert str(error.value) == expected_error_msg
+
+
+def test_add_ts(typedsession):
+    ts = typedsession
+    ts_class_name = ts.__class__.__name__
+
+    with pytest.warns(UserWarning) as caught_warnings:
+        test_add(ts)
+    assert len(caught_warnings) == 3
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts_class_name)
+    assert caught_warnings[1].message.args[0] == "'i01' is not declared in '{}'".format(ts_class_name)
+    assert caught_warnings[2].message.args[0] == "'j' is not declared in '{}'".format(ts_class_name)
+
+
+def test_iter_ts(typedsession):
+    test_iter(typedsession)
+
+
+def test_filter_ts(typedsession):
+    test_filter(typedsession)
+
+
+def test_names_ts(typedsession):
+    assert typedsession.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
+
+
+@needs_pytables
+def test_h5_io_ts(tmpdir, typedsession, meta):
+    _test_io(tmpdir, typedsession, meta, engine='pandas_hdf', ext='.h5')
+
+
+@needs_xlrd
+def test_xlsx_pandas_io_ts(tmpdir, typedsession, meta):
+    _test_io(tmpdir, typedsession, meta, engine='pandas_excel', ext='.xlsx')
+
+
+@needs_xlwings
+def test_xlsx_xlwings_io_ts(tmpdir, typedsession, meta):
+    _test_io(tmpdir, typedsession, meta, engine='xlwings_excel', ext='.xlsx')
+
+
+def test_csv_io_ts(tmpdir, typedsession, meta):
+    _test_io(tmpdir, typedsession, meta, engine='pandas_csv', ext='csv')
+
+
+def test_pickle_io_ts(tmpdir, typedsession, meta):
+    _test_io(tmpdir, typedsession, meta, engine='pickle', ext='.pkl')
+
+
+def test_pickle_roundtrip_ts(typedsession, meta):
+    ts = typedsession
+    ts.meta = meta
+    s = pickle.dumps(ts)
+    res = pickle.loads(s)
+    assert res.equals(ts)
+    assert res.meta == meta
+
+
+class TestOtherConstrainedSession(ConstrainedSession):
+    a = Axis
+    a2 = Axis
+    anonymous = Axis
+    a01 = Group
+    ano01 = Group
+    c = str
+    d = dict
+    e = Array
+    f = Array
+    h = ArrayDef
+    k = Array
+
+
+def test_element_equals_ts(typedsession):
+    test_element_equals(typedsession)
+
+
+def test_eq_ts(typedsession):
+    test_eq(typedsession)
+
+
+def test_ne_ts(typedsession):
+    test_ne(typedsession)
+
+
+def test_sub_ts(typedsession):
+    test_sub(typedsession)
+
+
+def test_rsub_ts(typedsession):
+    test_rsub(typedsession)
+
+
+def test_div_ts(typedsession):
+    test_div(typedsession)
+
+
+def test_rdiv_ts(typedsession):
+    test_rdiv(typedsession)
 
 
 if __name__ == "__main__":

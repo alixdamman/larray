@@ -790,7 +790,6 @@ Modifying
 
    Session.add
    Session.update
-   Session.get
    Session.apply
    Session.transpose
 
@@ -815,6 +814,22 @@ Load/Save
    Session.to_excel
    Session.to_hdf
    Session.to_pickle
+
+ArrayDef
+========
+
+.. autosummary::
+   :toctree: _generated/
+
+   ArrayDef
+
+ConstrainedSession
+==================
+
+.. autosummary::
+   :toctree: _generated/
+
+   ConstrainedSession
 
 .. _api-editor:
 

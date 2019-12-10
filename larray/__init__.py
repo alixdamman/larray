@@ -9,7 +9,7 @@ from larray.core.array import (Array, zeros, zeros_like, ones, ones_like, empty,
                                full_like, sequence, labels_array, ndtest, asarray, identity, diag,
                                eye, all, any, sum, prod, cumsum, cumprod, min, max, mean, ptp, var,
                                std, median, percentile, stack, zip_array_values, zip_array_items)
-from larray.core.session import Session, local_arrays, global_arrays, arrays
+from larray.core.session import Session, ConstrainedSession, ArrayDef, local_arrays, global_arrays, arrays
 from larray.core.constants import nan, inf, pi, e, euler_gamma
 from larray.core.metadata import Metadata
 from larray.core.ufuncs import wrap_elementwise_array_func, maximum, minimum, where
@@ -58,7 +58,7 @@ __all__ = [
     'all', 'any', 'sum', 'prod', 'cumsum', 'cumprod', 'min', 'max', 'mean', 'ptp', 'var', 'std',
     'median', 'percentile', 'stack', 'zip_array_values', 'zip_array_items',
     # session
-    'Session', 'local_arrays', 'global_arrays', 'arrays',
+    'Session', 'ConstrainedSession', 'ArrayDef', 'local_arrays', 'global_arrays', 'arrays',
     # constants
     'nan', 'inf', 'pi', 'e', 'euler_gamma',
     # metadata

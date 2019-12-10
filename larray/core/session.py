@@ -6,13 +6,15 @@ import sys
 import re
 import fnmatch
 import warnings
+from copy import copy
 from collections import OrderedDict
 
 import numpy as np
 
+from larray.core.abstractbases import ABCArray
 from larray.core.metadata import Metadata
 from larray.core.group import Group
-from larray.core.axis import Axis
+from larray.core.axis import Axis, AxisCollection
 from larray.core.constants import nan
 from larray.core.array import Array, get_axes, ndtest, zeros, zeros_like, sequence, asarray
 from larray.util.misc import float_error_handler_factory, is_interactive_interpreter, renamed_to, inverseop
@@ -95,7 +97,7 @@ class Session(object):
 
         if len(args) == 1:
             a0 = args[0]
-            if isinstance(a0, str):
+            if isinstance(a0, basestring):
                 # assume a0 is a filename
                 self.load(a0)
             else:
@@ -1473,6 +1475,132 @@ class Session(object):
             res += '\n'.join(display(k, v, True) for k, v in self.meta.items()) + '\n'
         res += '\n'.join(display(k, v) for k, v in self.items())
         return res
+
+
+class ArrayDef(ABCArray):
+    def __init__(self, axes):
+        if not all([isinstance(axis, (basestring, Axis)) for axis in axes]):
+            raise TypeError('ArrayDef only accepts string or Axis objects')
+        self.axes = axes
+
+
+class ConstrainedSession(Session):
+    """
+    Examples
+    --------
+    Content of file 'model_variables.py'
+
+    >>> # ==== MODEL VARIABLES ====
+    >>> class ModelVariables(ConstrainedSession):
+    ...     FIRST_OBS_YEAR = int
+    ...     FIRST_PROJ_YEAR = int
+    ...     LAST_PROJ_YEAR = int
+    ...     AGE = Axis
+    ...     GENDER = Axis
+    ...     TIME = Axis
+    ...     G_CHILDREN = Group
+    ...     G_ADULTS = Group
+    ...     G_OBS_YEARS = Group
+    ...     G_PROJ_YEARS = Group
+    ...     population = ArrayDef(('AGE', 'GENDER', 'TIME'))
+    ...     births = ArrayDef(('AGE', 'GENDER', 'TIME'))
+    ...     deaths = ArrayDef(('AGE', 'GENDER', 'TIME'))
+
+    Content of file 'model.py'
+
+    >>> def run_model(variant_name, first_proj_year, last_proj_year):
+    ...     # create an instance of the ModelVariables class
+    ...     m = ModelVariables()
+    ...     # ==== setup variables ====
+    ...     # set scalars
+    ...     m.FIRST_OBS_YEAR = 1991
+    ...     m.FIRST_PROJ_YEAR = first_proj_year
+    ...     m.LAST_PROJ_YEAR = last_proj_year
+    ...     # set axes
+    ...     m.AGE = Axis('age=0..120')
+    ...     m.GENDER = Axis('gender=male,female')
+    ...     m.TIME = Axis('time={}..{}'.format(m.FIRST_OBS_YEAR, m.LAST_PROJ_YEAR))
+    ...     # set groups
+    ...     m.G_CHILDREN = m.AGE[:17]
+    ...     m.G_ADULTS = m.AGE[18:]
+    ...     m.G_OBS_YEARS = m.TIME[:m.FIRST_PROJ_YEAR-1]
+    ...     m.G_PROJ_YEARS = m.TIME[m.FIRST_PROJ_YEAR:]
+    ...     # set arrays
+    ...     m.population = zeros((m.AGE, m.GENDER, m.TIME))
+    ...     m.births = zeros((m.AGE, m.GENDER, m.TIME))
+    ...     m.deaths = zeros((m.AGE, m.GENDER, m.TIME))
+    ...     # ==== model ====
+    ...     # some code here
+    ...     # ...
+    ...     # ==== output ====
+    ...     # save all variables in an HDF5 file
+    ...     m.save('{variant_name}.h5', display=True)
+
+    Content of file 'main.py'
+
+    >>> run_model('proj_2020_2070', first_proj_year=2020, last_proj_year=2070)
+    dumping FIRST_OBS_YEAR ... done
+    dumping FIRST_PROJ_YEAR ... done
+    dumping LAST_PROJ_YEAR ... done
+    dumping AGE ... done
+    dumping GENDER ... done
+    dumping TIME ... done
+    dumping G_CHILDREN ... done
+    dumping G_ADULTS ... done
+    dumping G_OBS_YEARS ... done
+    dumping G_PROJ_YEARS ... done
+    dumping population ... done
+    dumping births ... done
+    dumping deaths ... done
+    """
+    def __setitem__(self, key, value):
+        self._check_key_value(key, value)
+
+        # we need to keep the attribute in sync (initially to mask the class attribute)
+        object.__setattr__(self, key, value)
+        self._objects[key] = value
+
+    def __setattr__(self, key, value):
+        if key != 'meta':
+            self._check_key_value(key, value)
+
+        # update the real attribute
+        object.__setattr__(self, key, value)
+        # update self._objects
+        Session.__setattr__(self, key, value)
+
+    def _check_key_value(self, key, value):
+        cls = self.__class__
+        attr_def = getattr(cls, key, None)
+        if attr_def is None:
+            warnings.warn("'{}' is not declared in '{}'".format(key, self.__class__.__name__), stacklevel=2)
+        else:
+            attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
+            if not isinstance(value, attr_type):
+                raise TypeError("Expected object of type '{}'. Got object of type '{}'."
+                                .format(attr_type.__name__, value.__class__.__name__))
+            if isinstance(attr_def, ArrayDef):
+                def get_axis(axis):
+                    if isinstance(axis, basestring):
+                        try:
+                            axis = getattr(self, axis)
+                        except AttributeError:
+                            raise ValueError("Axis '{}' not defined in '{}'".format(axis, self.__class__.__name__))
+                    return axis
+
+                defined_axes = AxisCollection([get_axis(axis) for axis in attr_def.axes])
+                try:
+                    defined_axes.check_compatible(value.axes)
+                except ValueError as error:
+                    msg = str(error).replace("incompatible axes:", "incompatible axes for array '{}':".format(key))\
+                        .replace("vs", "was declared as")
+                    raise ValueError(msg)
+
+    def copy(self):
+        instance = self.__class__()
+        for key, value in self.items():
+            instance[key] = copy(value)
+        return instance
 
 
 def _exclude_private_vars(vars_dict):
