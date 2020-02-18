@@ -1478,9 +1478,9 @@ class Session(object):
 
 
 class ArrayDef(ABCArray):
-    def __init__(self, axes):
-        if not all([isinstance(axis, (basestring, Axis)) for axis in axes]):
-            raise TypeError('ArrayDef only accepts string or Axis objects')
+    def __init__(self, axes=None):
+        if axes is not None and not isinstance(axes, AxisCollection):
+            axes = AxisCollection(axes)
         self.axes = axes
 
 
@@ -1488,47 +1488,69 @@ class ConstrainedSession(Session):
     """
     Examples
     --------
-    Content of file 'model_variables.py'
+    Content of file 'constants.py'
 
-    >>> # ==== MODEL VARIABLES ====
-    >>> class ModelVariables(ConstrainedSession):
+    >>> # ==== CONSTANTS ====
+    >>> # The Constants class contains all 'constants' of the model,
+    >>> # i.e. all read-only variables for which values are the same for all variants of the model
+    >>> class Constants(ConstrainedSession):
     ...     FIRST_OBS_YEAR = int
-    ...     FIRST_PROJ_YEAR = int
     ...     LAST_PROJ_YEAR = int
     ...     AGE = Axis
     ...     GENDER = Axis
     ...     TIME = Axis
     ...     G_CHILDREN = Group
     ...     G_ADULTS = Group
-    ...     G_OBS_YEARS = Group
-    ...     G_PROJ_YEARS = Group
-    ...     population = ArrayDef(('AGE', 'GENDER', 'TIME'))
-    ...     births = ArrayDef(('AGE', 'GENDER', 'TIME'))
-    ...     deaths = ArrayDef(('AGE', 'GENDER', 'TIME'))
+
+    >>> # create a global instance of the Constants class
+    >>> C = Constants()
+
+    >>> # initialize the values of each constant
+    >>> C.FIRST_OBS_YEAR = 1991
+    >>> C.LAST_PROJ_YEAR = 2070
+    >>> C.AGE = Axis('age=0..120')
+    >>> C.GENDER = Axis('gender=male,female')
+    >>> C.TIME = Axis('time={}..{}'.format(C.FIRST_OBS_YEAR, C.LAST_PROJ_YEAR))
+    >>> C.G_CHILDREN = C.AGE[:17]
+    >>> C.G_ADULTS = C.AGE[18:]
+
+    >>> # save all constants in an HDF5 file
+    >>> C.save('constants.h5', display=True)
+    dumping FIRST_OBS_YEAR ... done
+    dumping LAST_PROJ_YEAR ... done
+    dumping AGE ... done
+    dumping GENDER ... done
+    dumping TIME ... done
+    dumping G_CHILDREN ... done
+    dumping G_ADULTS ... done
 
     Content of file 'model.py'
 
-    >>> def run_model(variant_name, first_proj_year, last_proj_year):
+    >>> from constants.py import C          # doctest: +SKIP
+
+    >>> class ModelVariables(ConstrainedSession):
+    ...     variant_name = str
+    ...     first_proj_year = int
+    ...     g_obs_years = Group
+    ...     g_proj_years = Group
+    ...     population = ArrayDef((C.AGE, C.GENDER, C.TIME))
+    ...     births = ArrayDef((C.AGE, C.GENDER, C.TIME))
+    ...     deaths = ArrayDef((C.AGE, C.GENDER, C.TIME))
+
+    >>> def run_model(variant_name, first_proj_year):
     ...     # create an instance of the ModelVariables class
     ...     m = ModelVariables()
     ...     # ==== setup variables ====
     ...     # set scalars
-    ...     m.FIRST_OBS_YEAR = 1991
-    ...     m.FIRST_PROJ_YEAR = first_proj_year
-    ...     m.LAST_PROJ_YEAR = last_proj_year
-    ...     # set axes
-    ...     m.AGE = Axis('age=0..120')
-    ...     m.GENDER = Axis('gender=male,female')
-    ...     m.TIME = Axis('time={}..{}'.format(m.FIRST_OBS_YEAR, m.LAST_PROJ_YEAR))
+    ...     m.variant_name = variant_name
+    ...     m.first_proj_year = first_proj_year
     ...     # set groups
-    ...     m.G_CHILDREN = m.AGE[:17]
-    ...     m.G_ADULTS = m.AGE[18:]
-    ...     m.G_OBS_YEARS = m.TIME[:m.FIRST_PROJ_YEAR-1]
-    ...     m.G_PROJ_YEARS = m.TIME[m.FIRST_PROJ_YEAR:]
+    ...     m.g_obs_years = C.TIME[:m.first_proj_year-1]
+    ...     m.g_proj_years = C.TIME[m.first_proj_year:]
     ...     # set arrays
-    ...     m.population = zeros((m.AGE, m.GENDER, m.TIME))
-    ...     m.births = zeros((m.AGE, m.GENDER, m.TIME))
-    ...     m.deaths = zeros((m.AGE, m.GENDER, m.TIME))
+    ...     m.population = zeros((C.AGE, C.GENDER, C.TIME))
+    ...     m.births = zeros((C.AGE, C.GENDER, C.TIME))
+    ...     m.deaths = zeros((C.AGE, C.GENDER, C.TIME))
     ...     # ==== model ====
     ...     # some code here
     ...     # ...
@@ -1538,17 +1560,11 @@ class ConstrainedSession(Session):
 
     Content of file 'main.py'
 
-    >>> run_model('proj_2020_2070', first_proj_year=2020, last_proj_year=2070)
-    dumping FIRST_OBS_YEAR ... done
-    dumping FIRST_PROJ_YEAR ... done
-    dumping LAST_PROJ_YEAR ... done
-    dumping AGE ... done
-    dumping GENDER ... done
-    dumping TIME ... done
-    dumping G_CHILDREN ... done
-    dumping G_ADULTS ... done
-    dumping G_OBS_YEARS ... done
-    dumping G_PROJ_YEARS ... done
+    >>> run_model('projection_2020_2070', first_proj_year=2020)
+    dumping variant_name ... done
+    dumping first_proj_year ... done
+    dumping g_obs_years ... done
+    dumping g_proj_years ... done
     dumping population ... done
     dumping births ... done
     dumping deaths ... done
@@ -1580,17 +1596,8 @@ class ConstrainedSession(Session):
                 raise TypeError("Expected object of type '{}'. Got object of type '{}'."
                                 .format(attr_type.__name__, value.__class__.__name__))
             if isinstance(attr_def, ArrayDef):
-                def get_axis(axis):
-                    if isinstance(axis, basestring):
-                        try:
-                            axis = getattr(self, axis)
-                        except AttributeError:
-                            raise ValueError("Axis '{}' not defined in '{}'".format(axis, self.__class__.__name__))
-                    return axis
-
-                defined_axes = AxisCollection([get_axis(axis) for axis in attr_def.axes])
                 try:
-                    defined_axes.check_compatible(value.axes)
+                    attr_def.axes.check_compatible(value.axes)
                 except ValueError as error:
                     msg = str(error).replace("incompatible axes:", "incompatible axes for array '{}':".format(key))\
                         .replace("vs", "was declared as")

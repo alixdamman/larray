@@ -661,16 +661,6 @@ def typedsession():
     return ts
 
 
-class ConstrainedSessionDefinedAxis(ConstrainedSession):
-    a = Axis
-    h = ArrayDef(('a', b2))
-
-
-class ConstrainedSessionUndefinedAxis(ConstrainedSession):
-    b = Axis
-    h = ArrayDef(('a', b2))
-
-
 def test_create_typedsession_instance(meta):
     ts = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h)
     assert ts.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -683,16 +673,6 @@ def test_create_typedsession_instance(meta):
     # load from file
     ts = TestConstrainedSession(inputpath('test_session.h5'))
     assert ts.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'e', 'f', 'g', 'h']
-
-    # one "array definition" depends on an axis which belongs to the class (and is defined at runtime) -> OK
-    ts = ConstrainedSessionDefinedAxis(a=a3, h=h)
-    assert ts.names == ['a', 'h']
-
-    # one "array definition" depends on an axis which does not belong to the class -> fails
-    expected_error_msg = "Axis 'a' not defined in '{}'".format(ConstrainedSessionUndefinedAxis.__name__)
-    with pytest.raises(ValueError) as error:
-        ts = ConstrainedSessionUndefinedAxis(b=b, h=h)
-    assert str(error.value) == expected_error_msg
 
 
 def test_getitem_ts(typedsession):
