@@ -96,6 +96,7 @@ class Session(object):
         self.meta = meta
 
         if len(args) == 1:
+            assert len(kwargs) == 0
             a0 = args[0]
             if isinstance(a0, basestring):
                 # assume a0 is a filename
@@ -1488,54 +1489,25 @@ class ConstrainedSession(Session):
     """
     Examples
     --------
-    Content of file 'constants.py'
-
-    >>> # ==== CONSTANTS ====
-    >>> # The Constants class contains all 'constants' of the model,
-    >>> # i.e. all read-only variables for which values are the same for all variants of the model
-    >>> class Constants(ConstrainedSession):
-    ...     FIRST_OBS_YEAR = int
-    ...     LAST_PROJ_YEAR = int
-    ...     AGE = Axis
-    ...     GENDER = Axis
-    ...     TIME = Axis
-    ...     G_CHILDREN = Group
-    ...     G_ADULTS = Group
-
-    >>> # create a global instance of the Constants class
-    >>> C = Constants()
-
-    >>> # initialize the values of each constant
-    >>> C.FIRST_OBS_YEAR = 1991
-    >>> C.LAST_PROJ_YEAR = 2070
-    >>> C.AGE = Axis('age=0..120')
-    >>> C.GENDER = Axis('gender=male,female')
-    >>> C.TIME = Axis('time={}..{}'.format(C.FIRST_OBS_YEAR, C.LAST_PROJ_YEAR))
-    >>> C.G_CHILDREN = C.AGE[:17]
-    >>> C.G_ADULTS = C.AGE[18:]
-
-    >>> # save all constants in an HDF5 file
-    >>> C.save('constants.h5', display=True)
-    dumping FIRST_OBS_YEAR ... done
-    dumping LAST_PROJ_YEAR ... done
-    dumping AGE ... done
-    dumping GENDER ... done
-    dumping TIME ... done
-    dumping G_CHILDREN ... done
-    dumping G_ADULTS ... done
-
-    Content of file 'model.py'
-
-    >>> from constants.py import C          # doctest: +SKIP
 
     >>> class ModelVariables(ConstrainedSession):
+    ...     # declare constant (read-only) variables. Their values cannot be changed at runtime.
+    ...     FIRST_OBS_YEAR = 1991
+    ...     LAST_PROJ_YEAR = 2070
+    ...     AGE = Axis('age=0..120')
+    ...     GENDER = Axis('gender=male,female')
+    ...     G_CHILDREN = AGE[:17]
+    ...     G_ADULTS = AGE[18:]
+    ...     # declare variables with defined types.
+    ...     # Their values will be defined at runtime but must match the specified type.
     ...     variant_name = str
     ...     first_proj_year = int
-    ...     g_obs_years = Group
-    ...     g_proj_years = Group
-    ...     population = ArrayDef((C.AGE, C.GENDER, C.TIME))
-    ...     births = ArrayDef((C.AGE, C.GENDER, C.TIME))
-    ...     deaths = ArrayDef((C.AGE, C.GENDER, C.TIME))
+    ...     obs_years = Axis
+    ...     proj_years = Axis
+    ...     population_obs = Array
+    ...     population_proj = Array
+    ...     # declare arrays with fixed axes
+    ...     mortality_rate = ArrayDef((AGE, GENDER))
 
     >>> def run_model(variant_name, first_proj_year):
     ...     # create an instance of the ModelVariables class
@@ -1544,13 +1516,13 @@ class ConstrainedSession(Session):
     ...     # set scalars
     ...     m.variant_name = variant_name
     ...     m.first_proj_year = first_proj_year
-    ...     # set groups
-    ...     m.g_obs_years = C.TIME[:m.first_proj_year-1]
-    ...     m.g_proj_years = C.TIME[m.first_proj_year:]
+    ...     # set axes
+    ...     m.obs_years = Axis(f'time={m.FIRST_OBS_YEAR}..{m.first_proj_year-1}')
+    ...     m.proj_years = Axis(f'time={m.first_proj_year}..{m.LAST_PROJ_YEAR}')
     ...     # set arrays
-    ...     m.population = zeros((C.AGE, C.GENDER, C.TIME))
-    ...     m.births = zeros((C.AGE, C.GENDER, C.TIME))
-    ...     m.deaths = zeros((C.AGE, C.GENDER, C.TIME))
+    ...     m.population_obs = zeros((m.AGE, m.GENDER, m.obs_years))
+    ...     m.population_proj = zeros((m.AGE, m.GENDER, m.proj_years))
+    ...     m.mortality_rate = zeros((m.AGE, m.GENDER))
     ...     # ==== model ====
     ...     # some code here
     ...     # ...
@@ -1561,14 +1533,55 @@ class ConstrainedSession(Session):
     Content of file 'main.py'
 
     >>> run_model('projection_2020_2070', first_proj_year=2020)
+    dumping FIRST_OBS_YEAR ... done
+    dumping LAST_PROJ_YEAR ... done
+    dumping AGE ... done
+    dumping GENDER ... done
+    dumping G_CHILDREN ... done
+    dumping G_ADULTS ... done
     dumping variant_name ... done
     dumping first_proj_year ... done
-    dumping g_obs_years ... done
-    dumping g_proj_years ... done
-    dumping population ... done
-    dumping births ... done
-    dumping deaths ... done
+    dumping obs_years ... done
+    dumping proj_years ... done
+    dumping population_obs ... done
+    dumping population_proj ... done
+    dumping mortality_rate ... done
     """
+    def __init__(self, *args, **kwargs):
+        _cls_attrs = {key: value for key, value in vars(self.__class__).items() if not key.startswith('_')}
+        object.__setattr__(self, '_cls_attrs', _cls_attrs)
+
+        constant_cls_attrs = {key: value for key, value in _cls_attrs.items()
+                              if not isinstance(value, (type, ArrayDef))}
+
+        if len(args) == 1:
+            # Note: using the two lines below we may loose the order in which variables have been declared
+            # but can we avoid it?
+            Session.__init__(self, *args, **kwargs)
+            self.add(**constant_cls_attrs)
+        else:
+            # Note: same as above
+            kwargs.update(constant_cls_attrs)
+            Session.__init__(self, *args, **kwargs)
+
+    def load(self, fname, names=None, engine='auto', display=False, **kwargs):
+        super().load(fname, names, engine, display, **kwargs)
+        for key in set(self._cls_attrs.keys()) - set(self.keys()):
+            warnings.warn(f"The variable {key} is declared in the {self.__class__.__name__} "
+                          f"class definition but has not found in file {fname}.")
+        for key in set(self.keys()) - set(self._cls_attrs.keys()):
+            warnings.warn(f"The variable {key} has been found in file {fname} but is not declared "
+                          f"in the  {self.__class__.__name__} class definition.")
+
+    def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
+        for key in set(self._cls_attrs.keys()) - set(self.keys()):
+            warnings.warn(f"The variable {key} is declared in the {self.__class__.__name__} "
+                          f"class definition but was not set.")
+        for key in set(self.keys()) - set(self._cls_attrs.keys()):
+            warnings.warn(f"The variable {key} has been added to the current session but is not declared "
+                          f"in the  {self.__class__.__name__} class definition.")
+        super().save(fname, names, engine, overwrite, display, **kwargs)
+
     def __setitem__(self, key, value):
         self._check_key_value(key, value)
 
@@ -1590,7 +1603,9 @@ class ConstrainedSession(Session):
         attr_def = getattr(cls, key, None)
         if attr_def is None:
             warnings.warn("'{}' is not declared in '{}'".format(key, self.__class__.__name__), stacklevel=2)
-        else:
+        elif isinstance(attr_def, (type, ArrayDef)):
+            if value is None:
+                return
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
             if not isinstance(value, attr_type):
                 raise TypeError("Expected object of type '{}'. Got object of type '{}'."
@@ -1602,6 +1617,17 @@ class ConstrainedSession(Session):
                     msg = str(error).replace("incompatible axes:", "incompatible axes for array '{}':".format(key))\
                         .replace("vs", "was declared as")
                     raise ValueError(msg)
+        else:
+            def equal(v1, v2):
+                if isinstance(v1, (Group, Axis)):
+                    return v1.equals(v2)
+                elif isinstance(v1, Array):
+                    return v1.equals(v2, nans_equal=True)
+                else:
+                    return v1 == v2
+            if not equal(value, attr_def):
+                warnings.warn(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
+                              f"definition of the {self.__class__.__name__} class.")
 
     def copy(self):
         instance = self.__class__()
