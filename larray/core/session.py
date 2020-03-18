@@ -1554,17 +1554,16 @@ class ConstrainedSession(Session):
         _cls_attrs = {key: value for key, value in vars(self.__class__).items() if not key.startswith('_')}
         object.__setattr__(self, '_cls_attrs', _cls_attrs)
 
-        instance_attrs = {key: value if not isinstance(value, (type, ArrayDef)) else NOT_LOADED
-                          for key, value in _cls_attrs.items()}
+        # need to call Session.__init__() to not fall into an infinite loop later
+        Session.__init__(self, meta=kwargs.pop('meta', None))
 
-        # add declared variables and metadata in first place
-        _kwargs = {'meta': kwargs.pop('meta', None)}
-        _kwargs.update(instance_attrs)
-        Session.__init__(self, **_kwargs)
+        # add declared variables in first place
+        for key, value in _cls_attrs.items():
+            if isinstance(value, (type, ArrayDef)):
+                value = NOT_LOADED
+            self.__setitem__(key, value, skip_check_value=True)
 
-        # add arguments passed to the ConstrainedSession.__init__() method in second place
         if len(args) == 1:
-            # Note: if len(args) == 1, **kwargs is not used in Session.__init__()
             assert len(kwargs) == 0
             a0 = args[0]
             if isinstance(a0, str):
@@ -1594,30 +1593,34 @@ class ConstrainedSession(Session):
                           f"in the  {self.__class__.__name__} class definition.")
         super().save(fname, names, engine, overwrite, display, **kwargs)
 
-    def __setitem__(self, key, value):
-        self._check_key_value(key, value)
+    def __setitem__(self, key, value, skip_check_value=False):
+        self._check_key_value(key, value, skip_check_value)
 
         # we need to keep the attribute in sync (initially to mask the class attribute)
         object.__setattr__(self, key, value)
         self._objects[key] = value
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key, value, skip_check_value=False):
         if key != 'meta':
-            self._check_key_value(key, value)
+            self._check_key_value(key, value, skip_check_value)
 
         # update the real attribute
         object.__setattr__(self, key, value)
         # update self._objects
         Session.__setattr__(self, key, value)
 
-    def _check_key_value(self, key, value):
+    def _check_key_value(self, key, value, skip_check_value):
         cls = self.__class__
         attr_def = getattr(cls, key, None)
+        # check key
         if attr_def is None:
             warnings.warn("'{}' is not declared in '{}'".format(key, self.__class__.__name__), stacklevel=2)
+            return
+        # check value
+        if skip_check_value:
+            return
+        # --- variables with defined type
         elif isinstance(attr_def, (type, ArrayDef)):
-            if value is NOT_LOADED:
-                return
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
             if not isinstance(value, attr_type):
                 raise TypeError("Expected object of type '{}'. Got object of type '{}'."
@@ -1629,6 +1632,7 @@ class ConstrainedSession(Session):
                     msg = str(error).replace("incompatible axes:", "incompatible axes for array '{}':".format(key))\
                         .replace("vs", "was declared as")
                     raise ValueError(msg)
+        # --- constant variables
         else:
             def equal(v1, v2):
                 if isinstance(v1, (Group, Axis)):
@@ -1637,6 +1641,8 @@ class ConstrainedSession(Session):
                     return v1.equals(v2, nans_equal=True)
                 else:
                     return v1 == v2
+            # test below should only be made when load() is called.
+            # Users should not be allowed to even try to use the = operator on a constant variable
             if not equal(value, attr_def):
                 raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
                                  f"definition of the {self.__class__.__name__} class.")
