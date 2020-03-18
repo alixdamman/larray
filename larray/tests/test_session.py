@@ -61,12 +61,12 @@ def session():
 
 
 def test_init_session(meta):
-    s = Session(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h)
-    assert s.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
+    s = Session(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, g=g, f=f, h=h)
+    assert list(s.keys()) == ['b', 'b024', 'a', 'a01', 'a2', 'anonymous', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
 
     # TODO: format autodetection does not work in this case
     # s = Session('test_session_csv')
-    # assert s.names == ['e', 'f', 'g']
+    # assert list(s.keys()) == ['e', 'f', 'g']
 
     # metadata
     s = Session(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h, meta=meta)
@@ -76,14 +76,14 @@ def test_init_session(meta):
 @needs_xlwings
 def test_init_session_xlsx():
     s = Session(inputpath('demography_eurostat.xlsx'))
-    assert s.names == ['births', 'deaths', 'immigration', 'population',
-                       'population_5_countries', 'population_benelux']
+    assert list(s.keys()) == ['population', 'population_benelux', 'population_5_countries',
+                              'births', 'deaths', 'immigration']
 
 
 @needs_pytables
 def test_init_session_hdf():
     s = Session(inputpath('test_session.h5'))
-    assert s.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'e', 'f', 'g', 'h']
+    assert list(s.keys()) == ['e', 'f', 'g', 'h', 'a', 'a2', 'anonymous', 'b', 'a01', 'ano01', 'b024']
 
 
 def test_getitem(session):
@@ -687,7 +687,7 @@ def test_create_constrainedsession_instance(meta):
 @needs_pytables
 def test_init_constrainedsession_hdf():
     cs = TestConstrainedSession(inputpath('test_session.h5'))
-    assert cs.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'e', 'f', 'g', 'h']
+    assert list(cs.keys()) == ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
 
 
 def test_getitem_ts(constrainedsession):
