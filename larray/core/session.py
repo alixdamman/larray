@@ -1635,8 +1635,8 @@ class ConstrainedSession(Session):
                 else:
                     return v1 == v2
             if not equal(value, attr_def):
-                warnings.warn(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
-                              f"definition of the {self.__class__.__name__} class.")
+                raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
+                                 f"definition of the {self.__class__.__name__} class.")
 
     def copy(self):
         instance = self.__class__()
