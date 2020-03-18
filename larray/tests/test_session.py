@@ -629,7 +629,7 @@ def test_arrays():
 class TestConstrainedSession(ConstrainedSession):
     b = b
     b024 = Group
-    a = a
+    a = Axis
     a2 = Axis
     anonymous = anonymous
     a01 = a01
@@ -646,6 +646,7 @@ class TestConstrainedSession(ConstrainedSession):
 def constrainedsession():
     cs = TestConstrainedSession()
     cs.b024 = b024
+    cs.a = a
     cs.a2 = a2
     cs.d = d
     cs.e = e
@@ -655,8 +656,27 @@ def constrainedsession():
 
 
 def test_create_constrainedsession_instance(meta):
-    cs = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h)
-    assert cs.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
+    declared_variable_keys = ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
+
+    cs = TestConstrainedSession()
+    assert list(cs.keys()) == declared_variable_keys
+    assert cs.b.equals(b)
+    assert cs.b024 is None
+    assert cs.a is None
+    assert cs.a2 is None
+    assert cs.anonymous.equals(anonymous)
+    assert cs.a01.equals(a01)
+    assert cs.ano01.equals(ano01)
+    assert cs.c == c
+    assert cs.d is None
+    assert cs.e is None
+    assert cs.g is None
+    assert cs.f.equals(f)
+    assert cs.h is None
+
+    # do not set a value to 'h' and add the undeclared variable 'i'
+    cs = TestConstrainedSession(b024, a, a2=a2, i=5, d=d, e=e, f=f, g=g)
+    assert list(cs.keys()) == declared_variable_keys + ['i']
 
     # metadata
     cs = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h,
