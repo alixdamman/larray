@@ -644,28 +644,28 @@ class TestConstrainedSession(ConstrainedSession):
 
 @pytest.fixture()
 def constrainedsession():
-    ts = TestConstrainedSession()
-    ts.b024 = b024
-    ts.a2 = a2
-    ts.d = d
-    ts.e = e
-    ts.g = g
-    ts.h = h
-    return ts
+    cs = TestConstrainedSession()
+    cs.b024 = b024
+    cs.a2 = a2
+    cs.d = d
+    cs.e = e
+    cs.g = g
+    cs.h = h
+    return cs
 
 
 def test_create_constrainedsession_instance(meta):
-    ts = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h)
-    assert ts.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
+    cs = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h)
+    assert cs.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'd', 'e', 'f', 'g', 'h']
 
     # metadata
-    ts = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h,
+    cs = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h,
                                 meta=meta)
-    assert ts.meta == meta
+    assert cs.meta == meta
 
     # load from file
-    ts = TestConstrainedSession(inputpath('test_session.h5'))
-    assert ts.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'e', 'f', 'g', 'h']
+    cs = TestConstrainedSession(inputpath('test_session.h5'))
+    assert cs.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'e', 'f', 'g', 'h']
 
 
 def test_getitem_ts(constrainedsession):
@@ -673,21 +673,21 @@ def test_getitem_ts(constrainedsession):
 
 
 def test_setitem_ts(constrainedsession):
-    ts = constrainedsession
+    cs = constrainedsession
 
     # only change values of an array -> OK
-    ts['h'] = zeros_like(h)
+    cs['h'] = zeros_like(h)
 
     # trying to add undeclared item -> prints a warning message
     with pytest.warns(UserWarning) as caught_warnings:
-        ts['i'] = ndtest((3, 3))
+        cs['i'] = ndtest((3, 3))
     assert len(caught_warnings) == 1
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts.__class__.__name__)
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs.__class__.__name__)
 
     # trying to set an item with an object of different type -> should fail
     expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
-        ts['h'] = h.data
+        cs['h'] = h.data
     assert str(error.value) == expected_error_msg
 
     #  trying to set an array using an array with wrong axes -> should fail
@@ -697,7 +697,7 @@ Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
 was declared as
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
-        ts['h'] = h.append('a', 0, 'a4')
+        cs['h'] = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
 
 
@@ -706,21 +706,21 @@ def test_getattr_ts(constrainedsession):
 
 
 def test_setattr_ts(constrainedsession):
-    ts = constrainedsession
+    cs = constrainedsession
 
     # only change values of an array -> OK
-    ts.h = zeros_like(h)
+    cs.h = zeros_like(h)
 
     # trying to add undeclared item -> prints a warning message
     with pytest.warns(UserWarning) as caught_warnings:
-        ts.i = ndtest((3, 3))
+        cs.i = ndtest((3, 3))
     assert len(caught_warnings) == 1
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts.__class__.__name__)
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs.__class__.__name__)
 
     # trying to set an item with an object of different type -> should fail
     expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
-        ts.h = h.data
+        cs.h = h.data
     assert str(error.value) == expected_error_msg
 
     #  trying to set an array using an array with wrong axes -> should fail
@@ -730,16 +730,16 @@ Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
 was declared as
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
-        ts.h = h.append('a', 0, 'a4')
+        cs.h = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
 
 
 def test_add_ts(constrainedsession):
-    ts = constrainedsession
-    ts_class_name = ts.__class__.__name__
+    cs = constrainedsession
+    ts_class_name = cs.__class__.__name__
 
     with pytest.warns(UserWarning) as caught_warnings:
-        test_add(ts)
+        test_add(cs)
     assert len(caught_warnings) == 3
     assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts_class_name)
     assert caught_warnings[1].message.args[0] == "'i01' is not declared in '{}'".format(ts_class_name)
@@ -783,11 +783,11 @@ def test_pickle_io_ts(tmpdir, constrainedsession, meta):
 
 
 def test_pickle_roundtrip_ts(constrainedsession, meta):
-    ts = constrainedsession
-    ts.meta = meta
-    s = pickle.dumps(ts)
+    cs = constrainedsession
+    cs.meta = meta
+    s = pickle.dumps(cs)
     res = pickle.loads(s)
-    assert res.equals(ts)
+    assert res.equals(cs)
     assert res.meta == meta
 
 
