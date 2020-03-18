@@ -11,6 +11,7 @@ import pytest
 from larray.tests.common import (assert_array_nan_equal, inputpath, tmp_path, meta,
                                  needs_xlwings, needs_pytables, needs_xlrd)
 from larray.inout.common import _supported_scalars_types
+from larray.core.session import NOT_LOADED
 from larray import (Session, Axis, Array, Group, isnan, zeros_like, ndtest, ones_like, ones, full,
                     full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ArrayDef)
 from larray.util.compat import pickle, PY2
@@ -661,18 +662,18 @@ def test_create_constrainedsession_instance(meta):
     cs = TestConstrainedSession()
     assert list(cs.keys()) == declared_variable_keys
     assert cs.b.equals(b)
-    assert cs.b024 is None
-    assert cs.a is None
-    assert cs.a2 is None
+    assert cs.b024 is NOT_LOADED
+    assert cs.a is NOT_LOADED
+    assert cs.a2 is NOT_LOADED
     assert cs.anonymous.equals(anonymous)
     assert cs.a01.equals(a01)
     assert cs.ano01.equals(ano01)
     assert cs.c == c
-    assert cs.d is None
-    assert cs.e is None
-    assert cs.g is None
+    assert cs.d is NOT_LOADED
+    assert cs.e is NOT_LOADED
+    assert cs.g is NOT_LOADED
     assert cs.f.equals(f)
-    assert cs.h is None
+    assert cs.h is NOT_LOADED
 
     # do not set a value to 'h' and add the undeclared variable 'i'
     cs = TestConstrainedSession(b024, a, a2=a2, i=5, d=d, e=e, f=f, g=g)

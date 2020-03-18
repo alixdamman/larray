@@ -1485,6 +1485,9 @@ class ArrayDef(ABCArray):
         self.axes = axes
 
 
+NOT_LOADED = object()
+
+
 class ConstrainedSession(Session):
     """
     Examples
@@ -1551,7 +1554,7 @@ class ConstrainedSession(Session):
         _cls_attrs = {key: value for key, value in vars(self.__class__).items() if not key.startswith('_')}
         object.__setattr__(self, '_cls_attrs', _cls_attrs)
 
-        instance_attrs = {key: value if not isinstance(value, (type, ArrayDef)) else None
+        instance_attrs = {key: value if not isinstance(value, (type, ArrayDef)) else NOT_LOADED
                           for key, value in _cls_attrs.items()}
 
         # add declared variables and metadata in first place
@@ -1613,7 +1616,7 @@ class ConstrainedSession(Session):
         if attr_def is None:
             warnings.warn("'{}' is not declared in '{}'".format(key, self.__class__.__name__), stacklevel=2)
         elif isinstance(attr_def, (type, ArrayDef)):
-            if value is None:
+            if value is NOT_LOADED:
                 return
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
             if not isinstance(value, attr_type):
