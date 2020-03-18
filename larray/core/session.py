@@ -1551,18 +1551,27 @@ class ConstrainedSession(Session):
         _cls_attrs = {key: value for key, value in vars(self.__class__).items() if not key.startswith('_')}
         object.__setattr__(self, '_cls_attrs', _cls_attrs)
 
-        constant_cls_attrs = {key: value for key, value in _cls_attrs.items()
-                              if not isinstance(value, (type, ArrayDef))}
+        instance_attrs = {key: value if not isinstance(value, (type, ArrayDef)) else None
+                          for key, value in _cls_attrs.items()}
 
+        # add declared variables and metadata in first place
+        _kwargs = {'meta': kwargs.pop('meta', None)}
+        _kwargs.update(instance_attrs)
+        Session.__init__(self, **_kwargs)
+
+        # add arguments passed to the ConstrainedSession.__init__() method in second place
         if len(args) == 1:
-            # Note: using the two lines below we may loose the order in which variables have been declared
-            # but can we avoid it?
-            Session.__init__(self, *args, **kwargs)
-            self.add(**constant_cls_attrs)
+            # Note: if len(args) == 1, **kwargs is not used in Session.__init__()
+            assert len(kwargs) == 0
+            a0 = args[0]
+            if isinstance(a0, str):
+                # assume a0 is a filename
+                self.load(a0)
+            else:
+                # iterable of tuple or dict-like
+                self.update(a0)
         else:
-            # Note: same as above
-            kwargs.update(constant_cls_attrs)
-            Session.__init__(self, *args, **kwargs)
+            self.add(*args, **kwargs)
 
     def load(self, fname, names=None, engine='auto', display=False, **kwargs):
         super().load(fname, names, engine, display, **kwargs)
