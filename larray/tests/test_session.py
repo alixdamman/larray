@@ -663,7 +663,9 @@ def test_create_constrainedsession_instance(meta):
                                 meta=meta)
     assert cs.meta == meta
 
-    # load from file
+
+@needs_pytables
+def test_init_constrainedsession_hdf():
     cs = TestConstrainedSession(inputpath('test_session.h5'))
     assert cs.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024', 'c', 'e', 'f', 'g', 'h']
 
