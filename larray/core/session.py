@@ -1577,12 +1577,6 @@ class ConstrainedSession(Session):
 
     def load(self, fname, names=None, engine='auto', display=False, **kwargs):
         super().load(fname, names, engine, display, **kwargs)
-        for key in set(self._cls_attrs.keys()) - set(self.keys()):
-            warnings.warn(f"The variable {key} is declared in the {self.__class__.__name__} "
-                          f"class definition but has not found in file {fname}.")
-        for key in set(self.keys()) - set(self._cls_attrs.keys()):
-            warnings.warn(f"The variable {key} has been found in file {fname} but is not declared "
-                          f"in the  {self.__class__.__name__} class definition.")
 
     def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
         for key, value in self.items():
