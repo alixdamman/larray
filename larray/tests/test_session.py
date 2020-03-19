@@ -716,19 +716,19 @@ def test_setitem_cs(constrainedsession):
     # only change values of an array -> OK
     cs['h'] = zeros_like(h)
 
-    # trying to add undeclared item -> prints a warning message
+    # trying to add an undeclared variable -> prints a warning message
     with pytest.warns(UserWarning) as caught_warnings:
         cs['i'] = ndtest((3, 3))
     assert len(caught_warnings) == 1
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs.__class__.__name__)
+    assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
-    # trying to set an item with an object of different type -> should fail
+    # trying to set a variable with an object of different type -> should fail
     expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
         cs['h'] = h.data
     assert str(error.value) == expected_error_msg
 
-    #  trying to set an array using an array with wrong axes -> should fail
+    # trying to set an array variable using an array with wrong axes -> should fail
     expected_error_msg = """\
 incompatible axes for array 'h':
 Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
@@ -736,6 +736,13 @@ was declared as
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs['h'] = h.append('a', 0, 'a4')
+    assert str(error.value) == expected_error_msg
+
+    # trying to set a new value to a constant variable
+    expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
+                         f"in the definition of the {cs.__class__.__name__} class."
+    with pytest.raises(ValueError) as error:
+        cs['b'] = Axis('b=b0..b6')
     assert str(error.value) == expected_error_msg
 
 
@@ -749,13 +756,13 @@ def test_setattr_cs(constrainedsession):
     # only change values of an array -> OK
     cs.h = zeros_like(h)
 
-    # trying to add undeclared item -> prints a warning message
+    # trying to add undeclared variable -> prints a warning message
     with pytest.warns(UserWarning) as caught_warnings:
         cs.i = ndtest((3, 3))
     assert len(caught_warnings) == 1
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs.__class__.__name__)
+    assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
-    # trying to set an item with an object of different type -> should fail
+    # trying to set an array variable using an array with wrong axes -> should fail
     expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
         cs.h = h.data
@@ -769,6 +776,13 @@ was declared as
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs.h = h.append('a', 0, 'a4')
+    assert str(error.value) == expected_error_msg
+
+    # trying to set a new value to a constant variable
+    expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
+                         f"in the definition of the {cs.__class__.__name__} class."
+    with pytest.raises(ValueError) as error:
+        cs.b = Axis('b=b0..b6')
     assert str(error.value) == expected_error_msg
 
 
