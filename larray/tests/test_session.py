@@ -659,6 +659,7 @@ def constrainedsession():
 def test_create_constrainedsession_instance(meta):
     declared_variable_keys = ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
 
+    # no arguments passed to the __init__() method
     cs = TestConstrainedSession()
     assert list(cs.keys()) == declared_variable_keys
     assert cs.b.equals(b)
@@ -675,14 +676,28 @@ def test_create_constrainedsession_instance(meta):
     assert cs.f.equals(f)
     assert cs.h is NOT_LOADED
 
-    # do not set a value to 'h' and add the undeclared variable 'i'
-    cs = TestConstrainedSession(b024, a, a2=a2, i=5, d=d, e=e, f=f, g=g)
-    assert list(cs.keys()) == declared_variable_keys + ['i']
-
     # metadata
-    cs = TestConstrainedSession(b, b024, a, a01, a2=a2, anonymous=anonymous, ano01=ano01, c=c, d=d, e=e, f=f, g=g, h=h,
-                                meta=meta)
+    cs = TestConstrainedSession(meta=meta)
     assert cs.meta == meta
+
+    # do not set any value to the declared 'h' variable + add the undeclared variable 'i'
+    with pytest.warns(UserWarning) as caught_warnings:
+        cs = TestConstrainedSession(b024, a, a2=a2, i=5, d=d, e=e, f=f, g=g)
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs.__class__.__name__)
+    assert list(cs.keys()) == declared_variable_keys + ['i']
+    assert cs.b.equals(b)
+    assert cs.b024.equals(b024)
+    assert cs.a.equals(a)
+    assert cs.a2.equals(a2)
+    assert cs.anonymous.equals(anonymous)
+    assert cs.a01.equals(a01)
+    assert cs.ano01.equals(ano01)
+    assert cs.c == c
+    assert cs.d == d
+    assert cs.e.equals(e)
+    assert cs.g.equals(g)
+    assert cs.f.equals(f)
+    assert cs.h is NOT_LOADED
 
 
 @needs_pytables
