@@ -1585,12 +1585,10 @@ class ConstrainedSession(Session):
                           f"in the  {self.__class__.__name__} class definition.")
 
     def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
-        for key in set(self._cls_attrs.keys()) - set(self.keys()):
-            warnings.warn(f"The variable {key} is declared in the {self.__class__.__name__} "
-                          f"class definition but was not set.")
-        for key in set(self.keys()) - set(self._cls_attrs.keys()):
-            warnings.warn(f"The variable {key} has been added to the current session but is not declared "
-                          f"in the  {self.__class__.__name__} class definition.")
+        for key, value in self.items():
+            if value is NOT_LOADED:
+                warnings.warn(f"The variable {key} is declared in the {self.__class__.__name__} "
+                              f"class definition but was not set.")
         super().save(fname, names, engine, overwrite, display, **kwargs)
 
     def __setitem__(self, key, value, skip_check_value=False):
