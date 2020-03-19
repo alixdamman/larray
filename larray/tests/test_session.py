@@ -706,11 +706,11 @@ def test_init_constrainedsession_hdf():
     assert list(cs.keys()) == ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
 
 
-def test_getitem_ts(constrainedsession):
+def test_getitem_cs(constrainedsession):
     test_getitem(constrainedsession)
 
 
-def test_setitem_ts(constrainedsession):
+def test_setitem_cs(constrainedsession):
     cs = constrainedsession
 
     # only change values of an array -> OK
@@ -739,11 +739,11 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     assert str(error.value) == expected_error_msg
 
 
-def test_getattr_ts(constrainedsession):
+def test_getattr_cs(constrainedsession):
     test_getattr(constrainedsession)
 
 
-def test_setattr_ts(constrainedsession):
+def test_setattr_cs(constrainedsession):
     cs = constrainedsession
 
     # only change values of an array -> OK
@@ -772,7 +772,7 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     assert str(error.value) == expected_error_msg
 
 
-def test_add_ts(constrainedsession):
+def test_add_cs(constrainedsession):
     cs = constrainedsession
     ts_class_name = cs.__class__.__name__
 
@@ -784,43 +784,43 @@ def test_add_ts(constrainedsession):
     assert caught_warnings[2].message.args[0] == "'j' is not declared in '{}'".format(ts_class_name)
 
 
-def test_iter_ts(constrainedsession):
+def test_iter_cs(constrainedsession):
     test_iter(constrainedsession)
 
 
-def test_filter_ts(constrainedsession):
+def test_filter_cs(constrainedsession):
     test_filter(constrainedsession)
 
 
-def test_names_ts(constrainedsession):
+def test_names_cs(constrainedsession):
     assert constrainedsession.names == ['a', 'a01', 'a2', 'ano01', 'anonymous', 'b', 'b024',
                                         'c', 'd', 'e', 'f', 'g', 'h']
 
 
 @needs_pytables
-def test_h5_io_ts(tmpdir, constrainedsession, meta):
+def test_h5_io_cs(tmpdir, constrainedsession, meta):
     _test_io(tmpdir, constrainedsession, meta, engine='pandas_hdf', ext='.h5')
 
 
 @needs_xlrd
-def test_xlsx_pandas_io_ts(tmpdir, constrainedsession, meta):
+def test_xlsx_pandas_io_cs(tmpdir, constrainedsession, meta):
     _test_io(tmpdir, constrainedsession, meta, engine='pandas_excel', ext='.xlsx')
 
 
 @needs_xlwings
-def test_xlsx_xlwings_io_ts(tmpdir, constrainedsession, meta):
+def test_xlsx_xlwings_io_cs(tmpdir, constrainedsession, meta):
     _test_io(tmpdir, constrainedsession, meta, engine='xlwings_excel', ext='.xlsx')
 
 
-def test_csv_io_ts(tmpdir, constrainedsession, meta):
+def test_csv_io_cs(tmpdir, constrainedsession, meta):
     _test_io(tmpdir, constrainedsession, meta, engine='pandas_csv', ext='csv')
 
 
-def test_pickle_io_ts(tmpdir, constrainedsession, meta):
+def test_pickle_io_cs(tmpdir, constrainedsession, meta):
     _test_io(tmpdir, constrainedsession, meta, engine='pickle', ext='.pkl')
 
 
-def test_pickle_roundtrip_ts(constrainedsession, meta):
+def test_pickle_roundtrip_cs(constrainedsession, meta):
     cs = constrainedsession
     cs.meta = meta
     s = pickle.dumps(cs)
@@ -843,31 +843,31 @@ class TestOtherConstrainedSession(ConstrainedSession):
     k = Array
 
 
-def test_element_equals_ts(constrainedsession):
+def test_element_equals_cs(constrainedsession):
     test_element_equals(constrainedsession)
 
 
-def test_eq_ts(constrainedsession):
+def test_eq_cs(constrainedsession):
     test_eq(constrainedsession)
 
 
-def test_ne_ts(constrainedsession):
+def test_ne_cs(constrainedsession):
     test_ne(constrainedsession)
 
 
-def test_sub_ts(constrainedsession):
+def test_sub_cs(constrainedsession):
     test_sub(constrainedsession)
 
 
-def test_rsub_ts(constrainedsession):
+def test_rsub_cs(constrainedsession):
     test_rsub(constrainedsession)
 
 
-def test_div_ts(constrainedsession):
+def test_div_cs(constrainedsession):
     test_div(constrainedsession)
 
 
-def test_rdiv_ts(constrainedsession):
+def test_rdiv_cs(constrainedsession):
     test_rdiv(constrainedsession)
 
 
