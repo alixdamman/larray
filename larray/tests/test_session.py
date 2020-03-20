@@ -186,9 +186,7 @@ def test_names(session):
 
 
 def _test_io(tmpdir, session, meta, engine, ext):
-    session_cls = session.__class__
-
-    filename = 'test_{}_{}{}'.format(session_cls.__name__, engine, ext)
+    filename = f"test_{engine}.{ext}" if 'csv' not in engine else f"test_{engine}{ext}"
     fpath = tmp_path(tmpdir, filename)
 
     is_excel_or_csv = 'excel' in engine or 'csv' in engine
@@ -200,7 +198,7 @@ def _test_io(tmpdir, session, meta, engine, ext):
 
     # save and load
     session.save(fpath, engine=engine)
-    s = session_cls()
+    s = Session()
     s.load(fpath, engine=engine)
     # use Session.names instead of Session.keys because CSV, Excel and HDF do *not* keep ordering
     assert s.names == session.names
@@ -216,8 +214,8 @@ def _test_io(tmpdir, session, meta, engine, ext):
     a4_01 = a3['0,1'] >> 'a01'
     e2 = ndtest((a4, 'b=b0..b2'))
     h2 = full_like(h, fill_value=10)
-    session_cls(a=a4, a01=a4_01, e=e2, h=h2).save(fpath, overwrite=False, engine=engine)
-    s = session_cls()
+    Session(a=a4, a01=a4_01, e=e2, h=h2).save(fpath, overwrite=False, engine=engine)
+    s = Session()
     s.load(fpath, engine=engine)
     if engine == 'pandas_excel':
         # Session.save() via engine='pandas_excel' always overwrite the output Excel files
@@ -234,8 +232,8 @@ def _test_io(tmpdir, session, meta, engine, ext):
 
     # load only some objects
     session.save(fpath, engine=engine)
-    s = session_cls()
-    names_to_load = ['e', 'f'] if is_excel_or_csv else ['a', 'a01', 'a2', 'anonymous', 'e', 'f']
+    s = Session()
+    names_to_load = ['e', 'f'] if is_excel_or_csv else ['a', 'a01', 'a2', 'anonymous', 'e', 'f', 's_bool', 's_int']
     s.load(fpath, names=names_to_load, engine=engine)
     assert s.names == names_to_load
     if engine != 'pandas_excel':
@@ -259,29 +257,28 @@ def _add_scalars_to_session(s):
 @needs_pytables
 def test_h5_io(tmpdir, session, meta):
     session = _add_scalars_to_session(session)
-    _test_io(tmpdir, session, meta, engine='pandas_hdf', ext='.h5')
+    _test_io(tmpdir, session, meta, engine='pandas_hdf', ext='h5')
 
 
 @needs_xlrd
 def test_xlsx_pandas_io(tmpdir, session, meta):
-    _test_io(tmpdir, session, meta, engine='pandas_excel', ext='.xlsx')
+    _test_io(tmpdir, session, meta, engine='pandas_excel', ext='xlsx')
 
 
 @needs_xlwings
 def test_xlsx_xlwings_io(tmpdir, session, meta):
-    _test_io(tmpdir, session, meta, engine='xlwings_excel', ext='.xlsx')
+    _test_io(tmpdir, session, meta, engine='xlwings_excel', ext='xlsx')
 
 
 def test_csv_io(tmpdir, session, meta):
-    session_cls = session.__class__
     try:
         fpath = _test_io(tmpdir, session, meta, engine='pandas_csv', ext='csv')
 
-        names = session_cls({k: v for k, v in session.items() if isinstance(v, Array)}).names
+        names = Session({k: v for k, v in session.items() if isinstance(v, Array)}).names
 
         # test loading with a pattern
         pattern = os.path.join(fpath, '*.csv')
-        s = session_cls(pattern)
+        s = Session(pattern)
         assert s.names == names
         assert s.meta == meta
 
@@ -292,10 +289,10 @@ def test_csv_io(tmpdir, session, meta):
 
         # try loading the directory with the invalid file
         with pytest.raises(pd.errors.ParserError) as e_info:
-            s = session_cls(pattern)
+            s = Session(pattern)
 
         # test loading a pattern, ignoring invalid/unsupported files
-        s = session_cls()
+        s = Session()
         s.load(pattern, ignore_exceptions=True)
         assert s.names == names
         assert s.meta == meta
@@ -305,7 +302,7 @@ def test_csv_io(tmpdir, session, meta):
 
 def test_pickle_io(tmpdir, session, meta):
     session = _add_scalars_to_session(session)
-    _test_io(tmpdir, session, meta, engine='pickle', ext='.pkl')
+    _test_io(tmpdir, session, meta, engine='pickle', ext='pkl')
 
 
 def test_pickle_roundtrip(session, meta):
@@ -788,14 +785,14 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
 
 def test_add_cs(constrainedsession):
     cs = constrainedsession
-    ts_class_name = cs.__class__.__name__
+    cs_class_name = cs.__class__.__name__
 
     with pytest.warns(UserWarning) as caught_warnings:
         test_add(cs)
     assert len(caught_warnings) == 3
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(ts_class_name)
-    assert caught_warnings[1].message.args[0] == "'i01' is not declared in '{}'".format(ts_class_name)
-    assert caught_warnings[2].message.args[0] == "'j' is not declared in '{}'".format(ts_class_name)
+    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs_class_name)
+    assert caught_warnings[1].message.args[0] == "'i01' is not declared in '{}'".format(cs_class_name)
+    assert caught_warnings[2].message.args[0] == "'j' is not declared in '{}'".format(cs_class_name)
 
 
 def test_iter_cs(constrainedsession):
