@@ -626,11 +626,11 @@ def test_arrays():
 
 class TestConstrainedSession(ConstrainedSession):
     b = b
-    b024 = Group
+    b024 = b024
     a = Axis
     a2 = Axis
     anonymous = anonymous
-    a01 = a01
+    a01 = Group
     ano01 = ano01
     c = c
     d = dict
@@ -643,9 +643,9 @@ class TestConstrainedSession(ConstrainedSession):
 @pytest.fixture()
 def constrainedsession():
     cs = TestConstrainedSession()
-    cs.b024 = b024
     cs.a = a
     cs.a2 = a2
+    cs.a01 = a01
     cs.d = d
     cs.e = e
     cs.g = g
@@ -660,11 +660,11 @@ def test_create_constrainedsession_instance(meta):
     cs = TestConstrainedSession()
     assert list(cs.keys()) == declared_variable_keys
     assert cs.b.equals(b)
-    assert cs.b024 is NOT_LOADED
+    assert cs.b024.equals(b024)
     assert cs.a is NOT_LOADED
     assert cs.a2 is NOT_LOADED
     assert cs.anonymous.equals(anonymous)
-    assert cs.a01.equals(a01)
+    assert cs.a01 is NOT_LOADED
     assert cs.ano01.equals(ano01)
     assert cs.c == c
     assert cs.d is NOT_LOADED
@@ -679,8 +679,8 @@ def test_create_constrainedsession_instance(meta):
 
     # do not set any value to the declared 'h' variable + add the undeclared variable 'i'
     with pytest.warns(UserWarning) as caught_warnings:
-        cs = TestConstrainedSession(b024, a, a2=a2, i=5, d=d, e=e, f=f, g=g)
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs.__class__.__name__)
+        cs = TestConstrainedSession(a, a01, a2=a2, i=5, d=d, e=e, f=f, g=g)
+    assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
     assert list(cs.keys()) == declared_variable_keys + ['i']
     assert cs.b.equals(b)
     assert cs.b024.equals(b024)
@@ -790,9 +790,9 @@ def test_add_cs(constrainedsession):
     with pytest.warns(UserWarning) as caught_warnings:
         test_add(cs)
     assert len(caught_warnings) == 3
-    assert caught_warnings[0].message.args[0] == "'i' is not declared in '{}'".format(cs_class_name)
-    assert caught_warnings[1].message.args[0] == "'i01' is not declared in '{}'".format(cs_class_name)
-    assert caught_warnings[2].message.args[0] == "'j' is not declared in '{}'".format(cs_class_name)
+    assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs_class_name}'"
+    assert caught_warnings[1].message.args[0] == f"'i01' is not declared in '{cs_class_name}'"
+    assert caught_warnings[2].message.args[0] == f"'j' is not declared in '{cs_class_name}'"
 
 
 def test_iter_cs(constrainedsession):
@@ -808,27 +808,210 @@ def test_names_cs(constrainedsession):
                                         'c', 'd', 'e', 'f', 'g', 'h']
 
 
+def _test_io_cs(tmpdir, meta, engine, ext):
+    filename = f"test_{engine}.{ext}" if 'csv' not in engine else f"test_{engine}{ext}"
+    fpath = tmp_path(tmpdir, filename)
+
+    is_excel_or_csv = 'excel' in engine or 'csv' in engine
+
+    # Save and load
+    # -------------
+
+    # a) - all typed variables have a defined value
+    #    - no extra variables are added
+    csession = TestConstrainedSession(a=a, a2=a2, a01=a01, d=d, e=e, g=g, h=h, meta=meta)
+    cls_name = csession.__class__.__name__
+    csession.save(fpath, engine=engine)
+    cs = TestConstrainedSession()
+    cs.load(fpath, engine=engine)
+    # --- keys ---
+    assert list(cs.keys()) == list(csession.keys())
+    # --- constant variables ---
+    assert cs.b.equals(b)
+    assert cs.b024.equals(b024)
+    assert cs.anonymous.equals(anonymous)
+    assert cs.ano01.equals(ano01)
+    assert cs.f.equals(f)
+    # --- typed variables ---
+    # dict is not supported by any format
+    assert cs.d is NOT_LOADED
+    # Array is support by all formats
+    assert cs.e.equals(e)
+    assert cs.g.equals(g)
+    assert cs.h.equals(h)
+    # Axis and Group are not supported by the Excel and CSV formats
+    if is_excel_or_csv:
+        assert cs.a is NOT_LOADED
+        assert cs.a2 is NOT_LOADED
+        assert cs.a01 is NOT_LOADED
+    else:
+        assert cs.a.equals(a)
+        assert cs.a2.equals(a2)
+        assert cs.a01.equals(a01)
+    # --- dtype of Axis variables ---
+    if not is_excel_or_csv:
+        for key in cs.filter(kind=Axis).keys():
+            assert cs[key].dtype == csession[key].dtype
+    # --- metadata ---
+    if engine != 'pandas_excel':
+        assert cs.meta == meta
+
+    # b) - not all typed variables have a defined value
+    #    - no extra variables are added
+    csession = TestConstrainedSession(a=a, d=d, e=e, h=h, meta=meta)
+    if 'csv' in engine:
+        import shutil
+        shutil.rmtree(fpath)
+
+    with pytest.warns(UserWarning) as caught_warnings:
+        csession.save(fpath, engine=engine)
+    assert len(caught_warnings) == 3
+    for i, var_name in enumerate(['a2', 'a01', 'g']):
+        assert caught_warnings[i].message.args[0] == f"The variable '{var_name}' is declared in the '{cls_name}' " \
+                                                     f"class definition but was not set."
+    cs = TestConstrainedSession()
+    cs.load(fpath, engine=engine)
+    # --- keys ---
+    assert list(cs.keys()) == list(csession.keys())
+    # --- constant variables ---
+    assert cs.b.equals(b)
+    assert cs.b024.equals(b024)
+    assert cs.anonymous.equals(anonymous)
+    assert cs.ano01.equals(ano01)
+    assert cs.f.equals(f)
+    # --- typed variables ---
+    # dict is not supported by any format
+    assert cs.d is NOT_LOADED
+    # Array is support by all formats
+    assert cs.e.equals(e)
+    assert cs.g is NOT_LOADED
+    assert cs.h.equals(h)
+    # Axis and Group are not supported by the Excel and CSV formats
+    if is_excel_or_csv:
+        assert cs.a is NOT_LOADED
+        assert cs.a2 is NOT_LOADED
+        assert cs.a01 is NOT_LOADED
+    else:
+        assert cs.a.equals(a)
+        assert cs.a2 is NOT_LOADED
+        assert cs.a01 is NOT_LOADED
+
+    # c) - all typed variables have a defined value
+    #    - extra variables are added
+    with pytest.warns(UserWarning) as caught_warnings:
+        csession = TestConstrainedSession(a=a, a2=a2, a01=a01, d=d, e=e, g=g, h=h,
+                                          k=ndtest((2, 2)), j=ndtest((3, 3)), i=ndtest((6)), meta=meta)
+        csession.save(fpath, engine=engine)
+    assert len(caught_warnings) == 3
+    for i, var_name in enumerate(['k', 'j', 'i']):
+        assert caught_warnings[i].message.args[0] == f"'{var_name}' is not declared in '{cls_name}'"
+
+    cs = TestConstrainedSession()
+    cs.load(fpath, engine=engine)
+    # --- names ---
+    # use .names instead of .keys() because CSV, Excel and HDF do *not* keep ordering.
+    # This may change the order of undeclared variables
+    assert cs.names == csession.names
+
+    # Update a Group + an Axis + an array (overwrite=False)
+    # -----------------------------------------------------
+    csession = TestConstrainedSession(a=a, a2=a2, a01=a01, d=d, e=e, g=g, h=h, meta=meta)
+    csession.save(fpath, engine=engine)
+    a4 = Axis('a=0..3')
+    a4_01 = a3['0,1'] >> 'a01'
+    e2 = ndtest((a4, 'b=b0..b2'))
+    h2 = full_like(h, fill_value=10)
+    TestConstrainedSession(a=a4, a01=a4_01, e=e2, h=h2).save(fpath, overwrite=False, engine=engine)
+    cs = TestConstrainedSession()
+    cs.load(fpath, engine=engine)
+    # --- constant variables ---
+    assert cs.b.equals(b)
+    assert cs.b024.equals(b024)
+    assert cs.anonymous.equals(anonymous)
+    assert cs.ano01.equals(ano01)
+    assert cs.f.equals(f)
+    # --- typed variables ---
+    # Array is support by all formats
+    cs.e.equals(e2)
+    cs.h.equals(h2)
+    if engine == 'pandas_excel':
+        # Session.save() via engine='pandas_excel' always overwrite the output Excel files
+        # array 'g' has been dropped
+        assert cs.g is NOT_LOADED
+        # Axis and Group are not supported by the Excel and CSV formats
+        assert cs.a is NOT_LOADED
+        assert cs.a2 is NOT_LOADED
+        assert cs.a01 is NOT_LOADED
+    elif is_excel_or_csv:
+        cs.g.equals(g)
+        # Axis and Group are not supported by the Excel and CSV formats
+        assert cs.a is NOT_LOADED
+        assert cs.a2 is NOT_LOADED
+        assert cs.a01 is NOT_LOADED
+    else:
+        assert list(cs.keys()) == list(csession.keys())
+        assert cs.a.equals(a4)
+        assert cs.a2.equals(a2)
+        assert cs.a01.equals(a4_01)
+    if engine != 'pandas_excel':
+        assert cs.meta == meta
+
+    # Load only some objects
+    # ----------------------
+    csession = TestConstrainedSession(a=a, a2=a2, a01=a01, d=d, e=e, g=g, h=h, meta=meta)
+    csession.save(fpath, engine=engine)
+    cs = TestConstrainedSession()
+    names_to_load = ['e', 'h'] if is_excel_or_csv else ['a', 'a01', 'a2', 'e', 'h']
+    cs.load(fpath, names=names_to_load, engine=engine)
+    # --- keys ---
+    assert list(cs.keys()) == list(csession.keys())
+    # --- constant variables ---
+    assert cs.b.equals(b)
+    assert cs.b024.equals(b024)
+    assert cs.anonymous.equals(anonymous)
+    assert cs.ano01.equals(ano01)
+    assert cs.f.equals(f)
+    # --- typed variables ---
+    # dict is not supported by any format
+    assert cs.d is NOT_LOADED
+    # Array is support by all formats
+    assert cs.e.equals(e)
+    assert cs.g is NOT_LOADED
+    assert cs.h.equals(h)
+    # Axis and Group are not supported by the Excel and CSV formats
+    if is_excel_or_csv:
+        assert cs.a is NOT_LOADED
+        assert cs.a2 is NOT_LOADED
+        assert cs.a01 is NOT_LOADED
+    else:
+        assert cs.a.equals(a)
+        assert cs.a2.equals(a2)
+        assert cs.a01.equals(a01)
+
+    return fpath
+
+
 @needs_pytables
-def test_h5_io_cs(tmpdir, constrainedsession, meta):
-    _test_io(tmpdir, constrainedsession, meta, engine='pandas_hdf', ext='.h5')
+def test_h5_io_cs(tmpdir, meta):
+    _test_io_cs(tmpdir, meta, engine='pandas_hdf', ext='h5')
 
 
 @needs_xlrd
-def test_xlsx_pandas_io_cs(tmpdir, constrainedsession, meta):
-    _test_io(tmpdir, constrainedsession, meta, engine='pandas_excel', ext='.xlsx')
+def test_xlsx_pandas_io_cs(tmpdir, meta):
+    _test_io_cs(tmpdir, meta, engine='pandas_excel', ext='xlsx')
 
 
 @needs_xlwings
-def test_xlsx_xlwings_io_cs(tmpdir, constrainedsession, meta):
-    _test_io(tmpdir, constrainedsession, meta, engine='xlwings_excel', ext='.xlsx')
+def test_xlsx_xlwings_io_cs(tmpdir, meta):
+    _test_io_cs(tmpdir, meta, engine='xlwings_excel', ext='xlsx')
 
 
-def test_csv_io_cs(tmpdir, constrainedsession, meta):
-    _test_io(tmpdir, constrainedsession, meta, engine='pandas_csv', ext='csv')
+def test_csv_io_cs(tmpdir, meta):
+    _test_io_cs(tmpdir, meta, engine='pandas_csv', ext='csv')
 
 
-def test_pickle_io_cs(tmpdir, constrainedsession, meta):
-    _test_io(tmpdir, constrainedsession, meta, engine='pickle', ext='.pkl')
+def test_pickle_io_cs(tmpdir, meta):
+    _test_io_cs(tmpdir, meta, engine='pickle', ext='pkl')
 
 
 def test_pickle_roundtrip_cs(constrainedsession, meta):

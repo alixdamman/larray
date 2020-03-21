@@ -1582,7 +1582,7 @@ class ConstrainedSession(Session):
     def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
         for key, value in self.items():
             if value is NOT_LOADED:
-                warnings.warn(f"The variable {key} is declared in the {self.__class__.__name__} "
+                warnings.warn(f"The variable '{key}' is declared in the '{self.__class__.__name__}' "
                               f"class definition but was not set.")
         super().save(fname, names, engine, overwrite, display, **kwargs)
 
@@ -1607,7 +1607,7 @@ class ConstrainedSession(Session):
         attr_def = getattr(cls, key, None)
         # check key
         if attr_def is None:
-            warnings.warn("'{}' is not declared in '{}'".format(key, self.__class__.__name__), stacklevel=2)
+            warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
             return
         # check value
         if skip_check_value:
@@ -1616,13 +1616,13 @@ class ConstrainedSession(Session):
         elif isinstance(attr_def, (type, ArrayDef)):
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
             if not isinstance(value, attr_type):
-                raise TypeError("Expected object of type '{}'. Got object of type '{}'."
-                                .format(attr_type.__name__, value.__class__.__name__))
+                raise TypeError(f"Expected object of type '{attr_type.__name__}'. "
+                                f"Got object of type '{value.__class__.__name__}'.")
             if isinstance(attr_def, ArrayDef):
                 try:
                     attr_def.axes.check_compatible(value.axes)
                 except ValueError as error:
-                    msg = str(error).replace("incompatible axes:", "incompatible axes for array '{}':".format(key))\
+                    msg = str(error).replace("incompatible axes:", f"incompatible axes for array '{key}':")\
                         .replace("vs", "was declared as")
                     raise ValueError(msg)
         # --- constant variables
