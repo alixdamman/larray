@@ -1576,6 +1576,7 @@ class ConstrainedSession(Session):
             self.add(*args, **kwargs)
 
     def load(self, fname, names=None, engine='auto', display=False, **kwargs):
+        # find a way to skip constant and save computation time?
         super().load(fname, names, engine, display, **kwargs)
 
     def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
