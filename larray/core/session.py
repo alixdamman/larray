@@ -1004,7 +1004,7 @@ class Session(object):
         return self._objects.items()
 
     def __repr__(self):
-        return 'Session({})'.format(', '.join(self.keys()))
+        return f"{self.__class__.__name__}({', '.join(self.keys())})"
 
     def __len__(self):
         return len(self._objects)
