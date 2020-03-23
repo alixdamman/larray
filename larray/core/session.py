@@ -914,7 +914,7 @@ class Session(object):
         r"""Returns a copy of the session.
         """
         # this actually *does* a copy of the internal mapping (the mapping is not reused-as is)
-        return Session(self._objects)
+        return self.__class__(self._objects)
 
     def keys(self):
         r"""
@@ -1639,12 +1639,6 @@ class ConstrainedSession(Session):
             if not equal(value, attr_def):
                 raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
                                  f"definition of the {self.__class__.__name__} class.")
-
-    def copy(self):
-        instance = self.__class__()
-        for key, value in self.items():
-            instance[key] = copy(value)
-        return instance
 
 
 def _exclude_private_vars(vars_dict):
