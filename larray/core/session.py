@@ -1009,13 +1009,17 @@ class Session(object):
     def __len__(self):
         return len(self._objects)
 
+    # intended to be overwritten in ConstrainedSession and is used by _binop() and _unaryop()
+    def _get_keys_for_op(self):
+        return list(self.keys())
+
     # binary operations are dispatched element-wise to all arrays (we consider Session as an array-like)
     def _binop(opname, arrays_only=True):
         opfullname = '__%s__' % opname
 
         def opmethod(self, other):
             self_keys = set(self.keys())
-            all_keys = list(self.keys())
+            all_keys = self._get_keys_for_op()
             if not isinstance(other, Array) and hasattr(other, 'keys'):
                 all_keys += [n for n in other.keys() if n not in self_keys]
             with np.errstate(call=_session_float_error_handler):
@@ -1039,7 +1043,7 @@ class Session(object):
                             except Exception:
                                 res_item = nan
                     res.append((name, res_item))
-            return Session(res)
+            return self.__class__(res)
         opmethod.__name__ = opfullname
         return opmethod
 
@@ -1063,7 +1067,8 @@ class Session(object):
         def opmethod(self):
             with np.errstate(call=_session_float_error_handler):
                 res = []
-                for k, v in self.items():
+                for k in self._get_keys_for_op():
+                    v = self[k]
                     if arrays_only and not isinstance(v, Array):
                         res_item = v
                     else:
@@ -1072,7 +1077,7 @@ class Session(object):
                         except Exception:
                             res_item = nan
                     res.append((k, res_item))
-            return Session(res)
+            return self.__class__(res)
         opmethod.__name__ = opfullname
         return opmethod
 
@@ -1649,6 +1654,21 @@ class ConstrainedSession(Session):
             if not equal(value, attr_def):
                 raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
                                  f"definition of the '{self.__class__.__name__}' class.")
+
+    def _get_keys_for_op(self):
+        def include_key(key):
+            attr_def = getattr(self.__class__, key, None)
+            # include undeclared variables
+            if attr_def is None:
+                return True
+            # skip unloaded declared variables
+            elif isinstance(attr_def, (type, ArrayDef)):
+                return not self[key] is NOT_LOADED
+            # skip constant declared variables
+            else:
+                return False
+
+        return [key for key in self.keys() if include_key(key)]
 
 
 def _exclude_private_vars(vars_dict):
