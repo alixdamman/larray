@@ -1623,7 +1623,7 @@ class ConstrainedSession(Session):
         elif isinstance(attr_def, (type, ArrayDef)):
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
             if not isinstance(value, attr_type):
-                raise TypeError(f"Expected object of type '{attr_type.__name__}'. "
+                raise TypeError(f"Expected object of type '{attr_type.__name__}' for the variable '{key}'. "
                                 f"Got object of type '{value.__class__.__name__}'.")
             if isinstance(attr_def, ArrayDef):
                 try:
@@ -1645,7 +1645,7 @@ class ConstrainedSession(Session):
             # Users should not be allowed to even try to use the = operator on a constant variable
             if not equal(value, attr_def):
                 raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
-                                 f"definition of the {self.__class__.__name__} class.")
+                                 f"definition of the '{self.__class__.__name__}' class.")
 
 
 def _exclude_private_vars(vars_dict):

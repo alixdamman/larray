@@ -720,7 +720,7 @@ def test_setitem_cs(constrainedsession):
     assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
     # trying to set a variable with an object of different type -> should fail
-    expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
+    expected_error_msg = "Expected object of type 'Array' for the variable 'h'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
         cs['h'] = h.data
     assert str(error.value) == expected_error_msg
@@ -737,7 +737,7 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
 
     # trying to set a new value to a constant variable
     expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
-                         f"in the definition of the {cs.__class__.__name__} class."
+                         f"in the definition of the '{cs.__class__.__name__}' class."
     with pytest.raises(ValueError) as error:
         cs['b'] = Axis('b=b0..b6')
     assert str(error.value) == expected_error_msg
@@ -760,7 +760,7 @@ def test_setattr_cs(constrainedsession):
     assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
     # trying to set an array variable using an array with wrong axes -> should fail
-    expected_error_msg = "Expected object of type 'Array'. Got object of type 'ndarray'."
+    expected_error_msg = "Expected object of type 'Array' for the variable 'h'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
         cs.h = h.data
     assert str(error.value) == expected_error_msg
@@ -777,7 +777,7 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
 
     # trying to set a new value to a constant variable
     expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
-                         f"in the definition of the {cs.__class__.__name__} class."
+                         f"in the definition of the '{cs.__class__.__name__}' class."
     with pytest.raises(ValueError) as error:
         cs.b = Axis('b=b0..b6')
     assert str(error.value) == expected_error_msg
