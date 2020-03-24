@@ -1490,6 +1490,13 @@ NOT_LOADED = object()
 
 class ConstrainedSession(Session):
     """
+    Warnings
+    --------
+    The :py:method:`ConstrainedSession.filter`, :py:method:`ConstrainedSession.compact`
+    and :py:method:`ConstrainedSession.apply` methods return a simple Session object.
+    The type of the declared variables (and the value for the declared constants) will
+    no longer by checked.
+
     Examples
     --------
 
