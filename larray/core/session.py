@@ -1011,7 +1011,7 @@ class Session(object):
 
     # binary operations are dispatched element-wise to all arrays (we consider Session as an array-like)
     def _binop(opname, arrays_only=True):
-        opfullname = f'__{opname}__'
+        opfullname = '__%s__' % opname
 
         def opmethod(self, other):
             self_keys = set(self.keys())
@@ -1034,7 +1034,7 @@ class Session(object):
                         # this should only ever happen when self_array is a non Array (eg. nan)
                         if res_item is NotImplemented:
                             try:
-                                res_item = getattr(other_operand, f'__{inverseop(opname)}__')(self_item)
+                                res_item = getattr(other_operand, '__%s__' % inverseop(opname))(self_item)
                             # TypeError for str arrays, ValueError for incompatible axes, ...
                             except Exception:
                                 res_item = nan
@@ -1058,7 +1058,7 @@ class Session(object):
     # element-wise method factory
     # unary operations are (also) dispatched element-wise to all arrays
     def _unaryop(opname):
-        opfullname = f'__{opname}__'
+        opfullname = '__%s__' % opname
 
         def opmethod(self):
             with np.errstate(call=_session_float_error_handler):
