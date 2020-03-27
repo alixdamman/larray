@@ -1498,6 +1498,21 @@ NOT_LOADED = object()
 
 class ConstrainedSession(Session):
     """
+    This class is intended to be inherit by user defined classes in which the variables of a model are declared.
+    Each declared variable is constrained by either a definite type or a constant value (see examples below).
+    All classes inheriting from `ConstrainedSession` will have access to all methods of the :py:class:`Session` class.
+
+    By declaring variables, users will speed up the development of their models using the auto-completion
+    (the feature in which development tools like PyCharm try to predict the variable or function a user intends to
+    enter after only a few characters have been typed).
+
+    The special :py:class:`ArrayDef` type represents an Array object with constant axes.
+    This prevents users from modifying the dimensions and/or labels of an array by mistake and make sure that
+    the definition of an array remains always valid in the model.
+
+    As for normal Session objects, it is still possible to add undeclared variables to instances of
+    classes inheriting from ConstrainedSession but this must be done with caution.
+
     Warnings
     --------
     The :py:method:`ConstrainedSession.filter`, :py:method:`ConstrainedSession.compact`
