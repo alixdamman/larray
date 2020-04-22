@@ -432,9 +432,10 @@ def test_ne(session):
 
 def test_sub(session):
     sess = session
+    session_cls = session.__class__
 
     # session - session
-    other = Session({'e': e, 'f': f})
+    other = session_cls({'e': e, 'f': f})
     other['e'] = e - 1
     other['f'] = ones_like(f)
     diff = sess - other
@@ -466,7 +467,7 @@ def test_sub(session):
 
     # session - array
     axes = [a, b]
-    other = Session([('a', a), ('a01', a01), ('c', c), ('e', ndtest((a, b))),
+    other = session_cls([('a', a), ('a01', a01), ('c', c), ('e', ndtest((a, b))),
                          ('f', full((a, b), fill_value=3)), ('g', ndtest('c=c0..c2'))])
     diff = other - ones(axes)
     assert_array_nan_equal(diff['e'], other['e'] - ones(axes))
@@ -1060,109 +1061,19 @@ def test_ne_cs(constrainedsession):
 
 
 def test_sub_cs(constrainedsession):
-    cs = constrainedsession
-    session_cls = cs.__class__
-
-    # session - session
-    other = session_cls(e=e-1, h=ones_like(h))
-    diff = cs - other
-    # --- constant variables ---
-    assert cs.b is b
-    assert cs.b024 is b024
-    assert cs.anonymous is anonymous
-    assert cs.ano01 is ano01
-    assert cs.f is f
-    # --- non constant arrays ---
-    assert_array_nan_equal(diff.e, np.full((2, 3), 1, dtype=np.int32))
-    assert isnan(diff.g).all()
-    assert_array_nan_equal(diff.h, h - ones_like(h))
-
-    # session - scalar
-    diff = cs - 2
-    # --- constant variables ---
-    assert cs.b is b
-    assert cs.b024 is b024
-    assert cs.anonymous is anonymous
-    assert cs.ano01 is ano01
-    assert cs.f is f
-    # --- non constant arrays ---
-    assert_array_nan_equal(diff.e, e - 2)
-    assert_array_nan_equal(diff.g, g - 2)
-    assert_array_nan_equal(diff.h, h - 2)
-
-    # session - dict(Array and scalar)
-    other = {'e': ones_like(e), 'h': 1}
-    diff = cs - other
-    # --- constant variables ---
-    assert cs.b is b
-    assert cs.b024 is b024
-    assert cs.anonymous is anonymous
-    assert cs.ano01 is ano01
-    assert cs.f is f
-    # --- non constant arrays ---
-    assert_array_nan_equal(diff.e, e - ones_like(e))
-    assert isnan(diff.g).all()
-    assert_array_nan_equal(diff.h, h - 1)
-
-    # session - array
-    axes = [a, b]
-    other = session_cls([('a', a), ('a01', a01), ('c', c), ('e', ndtest((a, b))),
-                         ('f', full((a, b), fill_value=3)), ('g', ndtest('c=c0..c2'))])
-    diff = other - ones(axes)
-    # --- constant variables ---
-    assert cs.b is b
-    assert cs.b024 is b024
-    assert cs.anonymous is anonymous
-    assert cs.ano01 is ano01
-    assert cs.f is f
-    # --- non constant arrays ---
-    assert_array_nan_equal(diff.e, other.e - ones(axes))
-    assert_array_nan_equal(diff.g, other.g - ones(axes))
-    assert_array_nan_equal(diff.h, other.h - ones(axes))
+    test_sub(constrainedsession)
 
 
 def test_rsub_cs(constrainedsession):
-    cs = constrainedsession
-
-    # scalar - session
-    diff = 2 - cs
-    # --- constant variables ---
-    assert cs.b is b
-    assert cs.b024 is b024
-    assert cs.anonymous is anonymous
-    assert cs.ano01 is ano01
-    assert cs.f is f
-    # --- non constant arrays ---
-    assert_array_nan_equal(diff.e, 2 - e)
-    assert_array_nan_equal(diff.g, 2 - g)
-    assert_array_nan_equal(diff.h, 2 - h)
-
-    # dict(Array and scalar) - session
-    other = {'e': ones_like(e), 'h': 1}
-    diff = other - cs
-    # --- constant variables ---
-    assert cs.b is b
-    assert cs.b024 is b024
-    assert cs.anonymous is anonymous
-    assert cs.ano01 is ano01
-    assert cs.f is f
-    # --- non constant arrays ---
-    assert_array_nan_equal(diff.e, ones_like(e) - e)
-    assert isnan(diff.g).all()
-    assert_array_nan_equal(diff.h, 1 - h)
+    test_rsub(constrainedsession)
 
 
-def test_neg_cs(constrainedsession):
-    cs = constrainedsession
-    res = -cs
-    # --- keys ---
-    assert list(cs.keys()) == list(res.keys())
-    # --- constant arrays ---
-    assert cs.f.equals(res.f)
-    # --- typed arrays ---
-    assert cs.e.equals(-res.e)
-    assert cs.g.equals(-res.g)
-    assert cs.h.equals(-res.h)
+def test_div_cs(constrainedsession):
+    test_div(constrainedsession)
+
+
+def test_rdiv_cs(constrainedsession):
+    test_rdiv(constrainedsession)
 
 
 if __name__ == "__main__":
