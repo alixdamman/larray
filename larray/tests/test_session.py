@@ -689,7 +689,7 @@ def test_create_constrainedsession_instance(meta):
 
     # do not set any value to the declared 'h' variable + add the undeclared variable 'i'
     with pytest.warns(UserWarning) as caught_warnings:
-        cs = TestConstrainedSession(a, a01, a2=a2, i=5, d=d, e=e, g=g)
+        cs = TestConstrainedSession(a, a01, a2=a2, i=5, d=d, e=e, f=f, g=g)
     assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
     assert list(cs.keys()) == declared_variable_keys + ['i']
     assert cs.b.equals(b)
@@ -746,7 +746,7 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     assert str(error.value) == expected_error_msg
 
     # trying to set a new value to a constant variable
-    expected_error_msg = f"The variable 'b' was declared with a constant value " \
+    expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
                          f"in the definition of the '{cs.__class__.__name__}' class."
     with pytest.raises(ValueError) as error:
         cs['b'] = Axis('b=b0..b6')
@@ -786,7 +786,7 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     assert str(error.value) == expected_error_msg
 
     # trying to set a new value to a constant variable
-    expected_error_msg = f"The variable 'b' was declared with a constant value " \
+    expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
                          f"in the definition of the '{cs.__class__.__name__}' class."
     with pytest.raises(ValueError) as error:
         cs.b = Axis('b=b0..b6')

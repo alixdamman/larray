@@ -309,7 +309,7 @@ class Session(object):
         except KeyError:
             return default
 
-    def __setitem__(self, key, value, **kwargs):
+    def __setitem__(self, key, value):
         self._objects[key] = value
 
     def __delitem__(self, key):
@@ -325,7 +325,7 @@ class Session(object):
             raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__.__name__, key))
 
     # TODO: implement meta.setter when Python 2.7 will be dropped
-    def __setattr__(self, key, value, **kwargs):
+    def __setattr__(self, key, value):
         if key == 'meta':
             if not isinstance(value, (list, dict, OrderedDict, Metadata)):
                 raise TypeError("Expected list of pairs or dict or OrderedDict or Metadata object "
@@ -445,7 +445,7 @@ class Session(object):
             handler = handler_cls(fname)
         metadata, objects = handler.read(names, display=display, **kwargs)
         for k, v in objects.items():
-            self.__setitem__(k, v, loaded_from_file=fname)
+            self[k] = v
         self.meta = metadata
 
     def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
@@ -1616,41 +1616,37 @@ class ConstrainedSession(Session):
                               f"class definition but was not set.")
         super().save(fname, names, engine, overwrite, display, **kwargs)
 
-    def __setitem__(self, key, value, skip_check_value=False, loaded_from_file=None):
-        self._check_key_value(key, value, skip_check_value, loaded_from_file)
+    def __setitem__(self, key, value, skip_check_value=False):
+        self._check_key_value(key, value, skip_check_value)
 
         # we need to keep the attribute in sync (initially to mask the class attribute)
         object.__setattr__(self, key, value)
         self._objects[key] = value
 
-    def __setattr__(self, key, value, skip_check_value=False, loaded_from_file=None):
+    def __setattr__(self, key, value, skip_check_value=False):
         if key != 'meta':
-            self._check_key_value(key, value, skip_check_value, loaded_from_file)
+            self._check_key_value(key, value, skip_check_value)
 
         # update the real attribute
         object.__setattr__(self, key, value)
         # update self._objects
         Session.__setattr__(self, key, value)
 
-    def _check_key_value(self, key, value, skip_check_value, loaded_from_file):
+    def _check_key_value(self, key, value, skip_check_value):
         cls = self.__class__
         attr_def = getattr(cls, key, None)
         # check key
         if attr_def is None:
-            prefix = ""
-            if loaded_from_file:
-                prefix = f"A value for a variable named '{key}' was found in file '{loaded_from_file}' while "
-            warnings.warn(f"{prefix}'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
+            warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
             return
         # check value
         if skip_check_value:
             return
         # --- variables with defined type
         elif isinstance(attr_def, (type, ArrayDef)):
-            prefix = f"from file {loaded_from_file}: " if loaded_from_file else ""
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
             if not isinstance(value, attr_type):
-                raise TypeError(f"{prefix}Expected object of type '{attr_type.__name__}' for the variable '{key}'. "
+                raise TypeError(f"Expected object of type '{attr_type.__name__}' for the variable '{key}'. "
                                 f"Got object of type '{value.__class__.__name__}'.")
             if isinstance(attr_def, ArrayDef):
                 try:
@@ -1658,10 +1654,9 @@ class ConstrainedSession(Session):
                 except ValueError as error:
                     msg = str(error).replace("incompatible axes:", f"incompatible axes for array '{key}':")\
                         .replace("vs", "was declared as")
-                    msg = prefix + msg
                     raise ValueError(msg)
         # --- constant variables
-        elif loaded_from_file:
+        else:
             def equal(v1, v2):
                 if isinstance(v1, (Group, Axis)):
                     return v1.equals(v2)
@@ -1669,13 +1664,11 @@ class ConstrainedSession(Session):
                     return v1.equals(v2, nans_equal=True)
                 else:
                     return v1 == v2
+            # test below should only be made when load() is called.
+            # Users should not be allowed to even try to use the = operator on a constant variable
             if not equal(value, attr_def):
-                raise ValueError(f"Mismatch between the declared value for the variable '{key}' in the "
-                                 f"definition of the '{self.__class__.__name__}' class and the value read "
-                                 f"from the file '{loaded_from_file}'")
-        else:
-            raise ValueError(f"The variable '{key}' was declared with a constant value in the definition of "
-                             f"the '{self.__class__.__name__}' class.")
+                raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
+                                 f"definition of the '{self.__class__.__name__}' class.")
 
     def _get_keys_for_op(self, opname):
         if opname in ['eq', 'ne']:
