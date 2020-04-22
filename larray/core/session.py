@@ -1057,21 +1057,18 @@ class Session(object):
 
     # element-wise method factory
     # unary operations are (also) dispatched element-wise to all arrays
-    def _unaryop(opname, arrays_only=True):
+    def _unaryop(opname):
         opfullname = '__%s__' % opname
 
         def opmethod(self):
             with np.errstate(call=_session_float_error_handler):
                 res = []
                 for k, v in self.items():
-                    if arrays_only and not isinstance(v, Array):
-                        res_item = v
-                    else:
-                        try:
-                            res_item = getattr(v, opfullname)()
-                        except Exception:
-                            res_item = nan
-                    res.append((k, res_item))
+                    try:
+                        res_array = getattr(v, opfullname)()
+                    except Exception:
+                        res_array = nan
+                    res.append((k, res_array))
             return Session(res)
         opmethod.__name__ = opfullname
         return opmethod

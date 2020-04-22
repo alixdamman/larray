@@ -546,17 +546,6 @@ def test_rdiv(session):
     assert res.c is c
 
 
-def test_neg(session):
-    res = -session
-
-    assert_array_nan_equal(res['e'], -e)
-    assert_array_nan_equal(res['f'], -f)
-    assert_array_nan_equal(res['g'], -g)
-    assert res.a is a
-    assert res.a01 is a01
-    assert res.c is c
-
-
 def test_to_globals(session):
     with pytest.warns(RuntimeWarning) as caught_warnings:
         session.to_globals()
