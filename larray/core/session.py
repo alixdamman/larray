@@ -1491,19 +1491,20 @@ NOT_LOADED = object()
 class ConstrainedSession(Session):
     """
     This class is intended to be inherit by user defined classes in which the variables of a model are declared.
-    Each declared variable is constrained by either a definite type or a constant value (see examples below).
+    Each declared variable is constrained by a type defined explicitly or deduced from the given default value
+    (see examples below).
     All classes inheriting from `ConstrainedSession` will have access to all methods of the :py:class:`Session` class.
-
-    By declaring variables, users will speed up the development of their models using the auto-completion
-    (the feature in which development tools like PyCharm try to predict the variable or function a user intends to
-    enter after only a few characters have been typed).
 
     The special :py:class:`ArrayDef` type represents an Array object with constant axes.
     This prevents users from modifying the dimensions and/or labels of an array by mistake and make sure that
     the definition of an array remains always valid in the model.
 
+    By declaring variables, users will speed up the development of their models using the auto-completion
+    (the feature in which development tools like PyCharm try to predict the variable or function a user intends to
+    enter after only a few characters have been typed).
+
     As for normal Session objects, it is still possible to add undeclared variables to instances of
-    classes inheriting from ConstrainedSession but this must be done with caution.
+    classes inheriting from `ConstrainedSession` but this must be done with caution.
 
     Warnings
     --------
@@ -1516,13 +1517,15 @@ class ConstrainedSession(Session):
     --------
 
     >>> class ModelVariables(ConstrainedSession):
-    ...     # declare constant (read-only) variables. Their values cannot be changed at runtime.
-    ...     FIRST_OBS_YEAR = 1991
-    ...     LAST_PROJ_YEAR = 2070
-    ...     AGE = Axis('age=0..120')
-    ...     GENDER = Axis('gender=male,female')
-    ...     G_CHILDREN = AGE[:17]
-    ...     G_ADULTS = AGE[18:]
+    ...     # declare variables with a default value.
+    ...     # The default value will be used to set the variable if no value is passed at instantiation (see below).
+    ...     # These variables will be constrained by the type deduced from their default values.
+    ...     FIRST_OBS_YEAR = 1991                   # int variable
+    ...     LAST_PROJ_YEAR = 2070                   # int variable
+    ...     AGE = Axis('age=0..120')                # Axis variable
+    ...     GENDER = Axis('gender=male,female')     # Axis variable
+    ...     G_CHILDREN = AGE[:17]                   # Group variable
+    ...     G_ADULTS = AGE[18:]                     # Group variable
     ...     # declare variables with defined types.
     ...     # Their values will be defined at runtime but must match the specified type.
     ...     variant_name = str
@@ -1531,11 +1534,11 @@ class ConstrainedSession(Session):
     ...     proj_years = Axis
     ...     population_obs = Array
     ...     population_proj = Array
-    ...     # declare arrays with fixed axes
+    ...     # declare arrays with constant axes
     ...     mortality_rate = ArrayDef((AGE, GENDER))
 
     >>> def run_model(variant_name, first_proj_year):
-    ...     # create an instance of the ModelVariables class
+    ...     # instantiation --> create an instance of the ModelVariables class
     ...     m = ModelVariables()
     ...     # ==== setup variables ====
     ...     # set scalars
@@ -1579,7 +1582,8 @@ class ConstrainedSession(Session):
         # need to call Session.__init__() to not fall into an infinite loop later
         Session.__init__(self, meta=kwargs.pop('meta', None))
 
-        # add declared variables in first place
+        # add declared variables in first place.
+        # add NOT_LOADED tag if no default value has been specified
         for key, value in _cls_attrs.items():
             if isinstance(value, (type, ArrayDef)):
                 value = NOT_LOADED
@@ -1598,7 +1602,6 @@ class ConstrainedSession(Session):
             self.add(*args, **kwargs)
 
     def load(self, fname, names=None, engine='auto', display=False, **kwargs):
-        # find a way to skip constant and save computation time?
         super().load(fname, names, engine, display, **kwargs)
 
     def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
@@ -1631,36 +1634,25 @@ class ConstrainedSession(Session):
         if attr_def is None:
             warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
             return
-        # check value
         if skip_check_value:
             return
-        # --- variables with defined type
-        elif isinstance(attr_def, (type, ArrayDef)):
+        # check type (and axes)
+        # --- type defined explicitly
+        if isinstance(attr_def, (type, ArrayDef)):
             attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
-            if not isinstance(value, attr_type):
-                raise TypeError(f"Expected object of type '{attr_type.__name__}' for the variable '{key}'. "
-                                f"Got object of type '{value.__class__.__name__}'.")
-            if isinstance(attr_def, ArrayDef):
-                try:
-                    attr_def.axes.check_compatible(value.axes)
-                except ValueError as error:
-                    msg = str(error).replace("incompatible axes:", f"incompatible axes for array '{key}':")\
-                        .replace("vs", "was declared as")
-                    raise ValueError(msg)
-        # --- constant variables
+        # --- type deduced from the default value
         else:
-            def equal(v1, v2):
-                if isinstance(v1, (Group, Axis)):
-                    return v1.equals(v2)
-                elif isinstance(v1, Array):
-                    return v1.equals(v2, nans_equal=True)
-                else:
-                    return v1 == v2
-            # test below should only be made when load() is called.
-            # Users should not be allowed to even try to use the = operator on a constant variable
-            if not equal(value, attr_def):
-                raise ValueError(f"Cannot modify the value of the variable '{key}' declared as a constant in the "
-                                 f"definition of the '{self.__class__.__name__}' class.")
+            attr_type = type(attr_def)
+        if not isinstance(value, attr_type):
+            raise TypeError(f"Expected object of type '{attr_type.__name__}' for the variable '{key}'. "
+                            f"Got object of type '{value.__class__.__name__}'.")
+        if isinstance(attr_def, ArrayDef):
+            try:
+                attr_def.axes.check_compatible(value.axes)
+            except ValueError as error:
+                msg = str(error).replace("incompatible axes:", f"incompatible axes for array '{key}':")\
+                    .replace("vs", "was declared as")
+                raise ValueError(msg)
 
 
 def _exclude_private_vars(vars_dict):

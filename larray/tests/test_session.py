@@ -720,9 +720,15 @@ def test_setitem_cs(constrainedsession):
     assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
     # trying to set a variable with an object of different type -> should fail
+    # a) type given explicitly
     expected_error_msg = "Expected object of type 'Array' for the variable 'h'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
         cs['h'] = h.data
+    assert str(error.value) == expected_error_msg
+    # b) type deduced from the given default value
+    expected_error_msg = "Expected object of type 'Axis' for the variable 'b'. Got object of type 'Array'."
+    with pytest.raises(TypeError) as error:
+        cs['b'] = ndtest((3, 3))
     assert str(error.value) == expected_error_msg
 
     # trying to set an array variable using an array with wrong axes -> should fail
@@ -733,13 +739,6 @@ was declared as
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs['h'] = h.append('a', 0, 'a4')
-    assert str(error.value) == expected_error_msg
-
-    # trying to set a new value to a constant variable
-    expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
-                         f"in the definition of the '{cs.__class__.__name__}' class."
-    with pytest.raises(ValueError) as error:
-        cs['b'] = Axis('b=b0..b6')
     assert str(error.value) == expected_error_msg
 
 
@@ -760,9 +759,15 @@ def test_setattr_cs(constrainedsession):
     assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
     # trying to set an array variable using an array with wrong axes -> should fail
+    # a) type given explicitly
     expected_error_msg = "Expected object of type 'Array' for the variable 'h'. Got object of type 'ndarray'."
     with pytest.raises(TypeError) as error:
         cs.h = h.data
+    assert str(error.value) == expected_error_msg
+    # b) type deduced from the given default value
+    expected_error_msg = "Expected object of type 'Axis' for the variable 'b'. Got object of type 'Array'."
+    with pytest.raises(TypeError) as error:
+        cs.b = ndtest((3, 3))
     assert str(error.value) == expected_error_msg
 
     #  trying to set an array using an array with wrong axes -> should fail
@@ -773,13 +778,6 @@ was declared as
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs.h = h.append('a', 0, 'a4')
-    assert str(error.value) == expected_error_msg
-
-    # trying to set a new value to a constant variable
-    expected_error_msg = f"Cannot modify the value of the variable 'b' declared as a constant " \
-                         f"in the definition of the '{cs.__class__.__name__}' class."
-    with pytest.raises(ValueError) as error:
-        cs.b = Axis('b=b0..b6')
     assert str(error.value) == expected_error_msg
 
 
