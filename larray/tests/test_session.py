@@ -1064,7 +1064,7 @@ def test_sub_cs(constrainedsession):
     session_cls = cs.__class__
 
     # session - session
-    other = session_cls(e=e - 1, h=ones_like(h))
+    other = session_cls(e=e-1, h=ones_like(h))
     diff = cs - other
     # --- constant variables ---
     assert cs.b is b
