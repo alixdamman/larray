@@ -432,10 +432,9 @@ def test_ne(session):
 
 def test_sub(session):
     sess = session
-    session_cls = session.__class__
 
     # session - session
-    other = session_cls({'e': e, 'f': f})
+    other = Session({'e': e, 'f': f})
     other['e'] = e - 1
     other['f'] = ones_like(f)
     diff = sess - other
@@ -467,8 +466,8 @@ def test_sub(session):
 
     # session - array
     axes = [a, b]
-    other = session_cls([('a', a), ('a01', a01), ('c', c), ('e', ndtest((a, b))),
-                         ('f', full((a, b), fill_value=3)), ('g', ndtest('c=c0..c2'))])
+    other = Session([('a', a), ('a01', a01), ('c', c), ('e', ndtest((a, b))),
+                     ('f', full((a, b), fill_value=3)), ('g', ndtest('c=c0..c2'))])
     diff = other - ones(axes)
     assert_array_nan_equal(diff['e'], other['e'] - ones(axes))
     assert_array_nan_equal(diff['f'], other['f'] - ones(axes))
@@ -1021,20 +1020,6 @@ def test_pickle_roundtrip_cs(constrainedsession, meta):
     assert res.meta == meta
 
 
-class TestOtherConstrainedSession(ConstrainedSession):
-    a = Axis
-    a2 = Axis
-    anonymous = Axis
-    a01 = Group
-    ano01 = Group
-    c = str
-    d = dict
-    e = Array
-    f = Array
-    h = ArrayDef
-    k = Array
-
-
 def test_element_equals_cs(constrainedsession):
     test_element_equals(constrainedsession)
 
@@ -1048,19 +1033,134 @@ def test_ne_cs(constrainedsession):
 
 
 def test_sub_cs(constrainedsession):
-    test_sub(constrainedsession)
+    cs = constrainedsession
+    session_cls = cs.__class__
+
+    # session - session
+    other = session_cls(e=e - 1, g=zeros_like(g), f=zeros_like(f), h=ones_like(h))
+    diff = cs - other
+    assert isinstance(diff, session_cls)
+    # --- non-array variables ---
+    assert diff.b is b
+    assert diff.b024 is b024
+    assert diff.a is a
+    assert diff.a2 is a2
+    assert diff.anonymous is anonymous
+    assert diff.a01 is a01
+    assert diff.ano01 is ano01
+    assert diff.c is c
+    assert diff.d is d
+    # --- array variables ---
+    assert_array_nan_equal(diff.e, np.full((2, 3), 1, dtype=np.int32))
+    assert_array_nan_equal(diff.g, g)
+    assert_array_nan_equal(diff.f, f)
+    assert_array_nan_equal(diff.h, h - ones_like(h))
+
+    # session - scalar
+    diff = cs - 2
+    assert isinstance(diff, session_cls)
+    # --- non-array variables ---
+    assert diff.b is b
+    assert diff.b024 is b024
+    assert diff.a is a
+    assert diff.a2 is a2
+    assert diff.anonymous is anonymous
+    assert diff.a01 is a01
+    assert diff.ano01 is ano01
+    assert diff.c is c
+    assert diff.d is d
+    # --- non constant arrays ---
+    assert_array_nan_equal(diff.e, e - 2)
+    assert_array_nan_equal(diff.g, g - 2)
+    assert_array_nan_equal(diff.f, f - 2)
+    assert_array_nan_equal(diff.h, h - 2)
+
+    # session - dict(Array and scalar)
+    other = {'e': ones_like(e), 'h': 1}
+    diff = cs - other
+    assert isinstance(diff, session_cls)
+    # --- non-array variables ---
+    assert diff.b is b
+    assert diff.b024 is b024
+    assert diff.a is a
+    assert diff.a2 is a2
+    assert diff.anonymous is anonymous
+    assert diff.a01 is a01
+    assert diff.ano01 is ano01
+    assert diff.c is c
+    assert diff.d is d
+    # --- non constant arrays ---
+    assert_array_nan_equal(diff.e, e - ones_like(e))
+    assert isnan(diff.g).all()
+    assert isnan(diff.f).all()
+    assert_array_nan_equal(diff.h, h - 1)
+
+    # session - array
+    axes = cs.h.axes
+    cs.e = ndtest(axes)
+    cs.g = ones_like(cs.h)
+    cs.f = full_like(cs.h, fill_value=3)
+    diff = cs - ones(axes)
+    assert isinstance(diff, session_cls)
+    # --- non-array variables ---
+    assert diff.b is b
+    assert diff.b024 is b024
+    assert diff.a is a
+    assert diff.a2 is a2
+    assert diff.anonymous is anonymous
+    assert diff.a01 is a01
+    assert diff.ano01 is ano01
+    assert diff.c is c
+    assert diff.d is d
+    # --- non constant arrays ---
+    assert_array_nan_equal(diff.e, cs.e - ones(axes))
+    assert_array_nan_equal(diff.g, cs.g - ones(axes))
+    assert_array_nan_equal(diff.f, cs.f - ones(axes))
+    assert_array_nan_equal(diff.h, cs.h - ones(axes))
 
 
 def test_rsub_cs(constrainedsession):
-    test_rsub(constrainedsession)
+    cs = constrainedsession
+    session_cls = cs.__class__
 
+    # scalar - session
+    diff = 2 - cs
+    assert isinstance(diff, session_cls)
+    # --- non-array variables ---
+    assert diff.b is b
+    assert diff.b024 is b024
+    assert diff.a is a
+    assert diff.a2 is a2
+    assert diff.anonymous is anonymous
+    assert diff.a01 is a01
+    assert diff.ano01 is ano01
+    assert diff.c is c
+    assert diff.d is d
+    # --- non constant arrays ---
+    assert_array_nan_equal(diff.e, 2 - e)
+    assert_array_nan_equal(diff.g, 2 - g)
+    assert_array_nan_equal(diff.f, 2 - f)
+    assert_array_nan_equal(diff.h, 2 - h)
 
-def test_div_cs(constrainedsession):
-    test_div(constrainedsession)
-
-
-def test_rdiv_cs(constrainedsession):
-    test_rdiv(constrainedsession)
+    # dict(Array and scalar) - session
+    other = {'e': ones_like(e), 'h': 1}
+    diff = other - cs
+    assert isinstance(diff, session_cls)
+    # --- non-array variables ---
+    assert diff.b is b
+    assert diff.b024 is b024
+    assert diff.a is a
+    assert diff.a2 is a2
+    assert diff.anonymous is anonymous
+    assert diff.a01 is a01
+    assert diff.ano01 is ano01
+    assert diff.c is c
+    assert diff.d is d
+    # --- non constant arrays ---
+    assert_array_nan_equal(diff.e, ones_like(e) - e)
+    assert isnan(diff.g).all()
+    assert isnan(diff.f).all()
+    assert_array_nan_equal(diff.h, 1 - h)
 
 
 if __name__ == "__main__":

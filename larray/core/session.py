@@ -1039,7 +1039,12 @@ class Session(object):
                             except Exception:
                                 res_item = nan
                     res.append((name, res_item))
-            return Session(res)
+            try:
+                # XXX: print a warning?
+                ses = self.__class__(res)
+            except Exception:
+                ses = Session(res)
+            return ses
         opmethod.__name__ = opfullname
         return opmethod
 
@@ -1069,7 +1074,12 @@ class Session(object):
                     except Exception:
                         res_array = nan
                     res.append((k, res_array))
-            return Session(res)
+            try:
+                # XXX: print a warning?
+                ses = self.__class__(res)
+            except Exception:
+                ses = Session(res)
+            return ses
         opmethod.__name__ = opfullname
         return opmethod
 
