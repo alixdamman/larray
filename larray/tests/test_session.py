@@ -11,9 +11,8 @@ import pytest
 from larray.tests.common import (assert_array_nan_equal, inputpath, tmp_path, meta,
                                  needs_xlwings, needs_pytables, needs_xlrd)
 from larray.inout.common import _supported_scalars_types
-from larray.core.session import NOT_LOADED
-from larray import (Session, Axis, Array, Group, isnan, zeros_like, ndtest, ones_like, ones, full,
-                    full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ArrayDef)
+from larray import (Session, Axis, AxisCollection, Array, Group, isnan, zeros_like, ndtest, ones_like, ones, full,
+                    full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ConstantAxesArray)
 from larray.util.compat import pickle, PY2
 
 
@@ -626,61 +625,29 @@ def test_arrays():
 class TestConstrainedSession(ConstrainedSession):
     b = b
     b024 = b024
-    a = Axis
-    a2 = Axis
+    a: Axis
+    a2: Axis
     anonymous = anonymous
-    a01 = Group
+    a01: Group
     ano01 = ano01
-    c = c
-    d = dict
-    e = Array
-    g = Array
-    f = f
-    h = ArrayDef((a3, b2))
+    c: str = c
+    d = dict()
+    e: Array
+    g: Array
+    f: ConstantAxesArray((Axis(3), Axis(2)))
+    h: ConstantAxesArray((a3, b2))
 
 
 @pytest.fixture()
 def constrainedsession():
-    cs = TestConstrainedSession()
-    cs.a = a
-    cs.a2 = a2
-    cs.a01 = a01
-    cs.d = d
-    cs.e = e
-    cs.g = g
-    cs.h = h
-    return cs
+    return TestConstrainedSession(a=a, a2=a2, a01=a01, e=e, g=g, f=f, h=h)
 
 
 def test_create_constrainedsession_instance(meta):
-    declared_variable_keys = ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
+    declared_variable_keys = {'b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h'}
 
-    # no arguments passed to the __init__() method
-    cs = TestConstrainedSession()
-    assert list(cs.keys()) == declared_variable_keys
-    assert cs.b.equals(b)
-    assert cs.b024.equals(b024)
-    assert cs.a is NOT_LOADED
-    assert cs.a2 is NOT_LOADED
-    assert cs.anonymous.equals(anonymous)
-    assert cs.a01 is NOT_LOADED
-    assert cs.ano01.equals(ano01)
-    assert cs.c == c
-    assert cs.d is NOT_LOADED
-    assert cs.e is NOT_LOADED
-    assert cs.g is NOT_LOADED
-    assert cs.f.equals(f)
-    assert cs.h is NOT_LOADED
-
-    # metadata
-    cs = TestConstrainedSession(meta=meta)
-    assert cs.meta == meta
-
-    # do not set any value to the declared 'h' variable + add the undeclared variable 'i'
-    with pytest.warns(UserWarning) as caught_warnings:
-        cs = TestConstrainedSession(a, a01, a2=a2, i=5, d=d, e=e, f=f, g=g)
-    assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
-    assert list(cs.keys()) == declared_variable_keys + ['i']
+    cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=h)
+    assert set(cs.keys()) == declared_variable_keys
     assert cs.b.equals(b)
     assert cs.b024.equals(b024)
     assert cs.a.equals(a)
@@ -693,13 +660,28 @@ def test_create_constrainedsession_instance(meta):
     assert cs.e.equals(e)
     assert cs.g.equals(g)
     assert cs.f.equals(f)
-    assert cs.h is NOT_LOADED
+    assert cs.h.equals(h)
+
+    # metadata
+    cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=h, meta=meta)
+    assert cs.meta == meta
+
+    # passing a scalar to set all elements a ConstantAxesArray
+    cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=5)
+    assert cs.h.axes == AxisCollection((a3, b2))
+    assert cs.h.equals(full(axes=(a3, b2), fill_value=5))
+
+    # add the undeclared variable 'i'
+    with pytest.warns(UserWarning) as caught_warnings:
+        cs = TestConstrainedSession(a, a01, a2=a2, i=5, e=e, f=f, g=g, h=h)
+    assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
+    assert set(cs.keys()) == declared_variable_keys | {'i'}
 
 
 @needs_pytables
 def test_init_constrainedsession_hdf():
     cs = TestConstrainedSession(inputpath('test_session.h5'))
-    assert list(cs.keys()) == ['b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h']
+    assert set(cs.keys()) == {'b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h'}
 
 
 def test_getitem_cs(constrainedsession):
@@ -720,22 +702,34 @@ def test_setitem_cs(constrainedsession):
 
     # trying to set a variable with an object of different type -> should fail
     # a) type given explicitly
-    expected_error_msg = "Expected object of type 'Array' for the variable 'h'. Got object of type 'ndarray'."
+    # -> Axis
+    expected_error_msg = "instance of Axis expected"
+    with pytest.raises(TypeError) as error:
+        cs['a'] = 0
+    assert str(error.value) == expected_error_msg
+    # -> ConstantAxesArray
+    expected_error_msg = "Expected object of type 'Array' or a scalar for the variable 'h' " \
+                         "but got object of type 'ndarray'"
     with pytest.raises(TypeError) as error:
         cs['h'] = h.data
     assert str(error.value) == expected_error_msg
     # b) type deduced from the given default value
-    expected_error_msg = "Expected object of type 'Axis' for the variable 'b'. Got object of type 'Array'."
+    expected_error_msg = "instance of Axis expected"
     with pytest.raises(TypeError) as error:
         cs['b'] = ndtest((3, 3))
     assert str(error.value) == expected_error_msg
 
-    # trying to set an array variable using an array with wrong axes -> should fail
+    # trying to set a ConstantAxesArray variable using an array with wrong axes -> should fail
     expected_error_msg = """\
-incompatible axes for array 'h':
-Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
-was declared as
-Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
+Array 'h' was declared with axes
+AxisCollection([
+    Axis(['a0', 'a1', 'a2', 'a3'], 'a'),
+    Axis(['b0', 'b1', 'b2', 'b3', 'b4'], 'b')
+]) but got array with axes 
+AxisCollection([
+    Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a'),
+    Axis(['b0', 'b1', 'b2', 'b3', 'b4'], 'b')
+])"""
     with pytest.raises(ValueError) as error:
         cs['h'] = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
@@ -757,14 +751,21 @@ def test_setattr_cs(constrainedsession):
     assert len(caught_warnings) == 1
     assert caught_warnings[0].message.args[0] == f"'i' is not declared in '{cs.__class__.__name__}'"
 
-    # trying to set an array variable using an array with wrong axes -> should fail
+    # trying to set a variable with an object of different type -> should fail
     # a) type given explicitly
-    expected_error_msg = "Expected object of type 'Array' for the variable 'h'. Got object of type 'ndarray'."
+    # -> Axis
+    expected_error_msg = "instance of Axis expected"
+    with pytest.raises(TypeError) as error:
+        cs.a = 0
+    assert str(error.value) == expected_error_msg
+    # -> ConstantAxesArray
+    expected_error_msg = "Expected object of type 'Array' or a scalar for the variable 'h' " \
+                         "but got object of type 'ndarray'"
     with pytest.raises(TypeError) as error:
         cs.h = h.data
     assert str(error.value) == expected_error_msg
     # b) type deduced from the given default value
-    expected_error_msg = "Expected object of type 'Axis' for the variable 'b'. Got object of type 'Array'."
+    expected_error_msg = "instance of Axis expected"
     with pytest.raises(TypeError) as error:
         cs.b = ndtest((3, 3))
     assert str(error.value) == expected_error_msg

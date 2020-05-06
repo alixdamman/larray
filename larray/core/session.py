@@ -11,12 +11,16 @@ from collections import OrderedDict
 
 import numpy as np
 
+from typing import Type
+from pydantic import BaseModel, Extra, ValidationError
+from pydantic.fields import ModelField
+
 from larray.core.abstractbases import ABCArray
 from larray.core.metadata import Metadata
 from larray.core.group import Group
 from larray.core.axis import Axis, AxisCollection
 from larray.core.constants import nan
-from larray.core.array import Array, get_axes, ndtest, zeros, zeros_like, sequence, asarray
+from larray.core.array import Array, get_axes, ndtest, zeros, zeros_like, full, sequence
 from larray.util.misc import float_error_handler_factory, is_interactive_interpreter, renamed_to, inverseop
 from larray.util.compat import basestring, Iterable
 from larray.inout.session import ext_default_engine, get_file_handler
@@ -1488,24 +1492,67 @@ class Session(object):
         return res
 
 
-class ArrayDef(ABCArray):
-    def __init__(self, axes=None):
-        if axes is not None and not isinstance(axes, AxisCollection):
-            axes = AxisCollection(axes)
-        self.axes = axes
+# the implementation of the class below is inspired by the 'ConstrainedBytes' class
+# from the types.py module of the 'pydantic' library
+class ConstrainedArrayImpl(Array):
+    expected_axes: AxisCollection
+
+    # see https://pydantic-docs.helpmanual.io/usage/types/#classes-with-__get_validators__
+    @classmethod
+    def __get_validators__(cls):
+        # one or more validators may be yielded which will be called in the
+        # order to validate the input, each validator will receive as an input
+        # the value returned from the previous validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value, field: ModelField):
+        # XXX: not sure we should accept a scalar as value but this allows to not repeat axes
+        # when setting a (default) value to the associated array
+        if not (isinstance(value, Array) or np.isscalar(value)):
+            raise TypeError("Expected object of type '{}' or a scalar for the variable '{}' "
+                            "but got object of type '{}'".format(Array.__name__, field.name, type(value).__name__))
+        # convert scalar to array with defined axes
+        if not isinstance(value, Array):
+            value = full(axes=cls.expected_axes, fill_value=value)
+        # check that passed array has compatible axes
+        else:
+            # XXX: we do not use 'cls.expected_axes == value.axes' because we consider
+            # that the order of axes is not important
+            try:
+                # XXX: should we allow broadcasting?
+                # if yes, the lines below must be replaced by something like:
+                #    cls.expected_axes.check_compatible(value.axes)
+                #    v = zeros_like(cls.expected_axes)
+                #    v[:] = value
+                #    value = v
+                if len(value.axes) != len(cls.expected_axes):
+                    raise Exception()
+                cls.expected_axes.check_compatible(value.axes)
+            except Exception:
+                msg = "Array '{}' was declared with axes \n{!r} " \
+                      "but got array with axes \n{!r}".format(field.name, cls.expected_axes, value.axes)
+                raise ValueError(msg)
+        return value
 
 
-NOT_LOADED = object()
+# the implementation of the function below is inspired by the 'conbytes' function
+# from the types.py module of the 'pydantic' library
+def ConstantAxesArray(axes) -> Type[ConstrainedArrayImpl]:
+    if axes is not None and not isinstance(axes, AxisCollection):
+        axes = AxisCollection(axes)
+    namespace = {'expected_axes': axes}
+    return type('ConstrainedArrayImpl', (ConstrainedArrayImpl,), namespace)
 
 
-class ConstrainedSession(Session):
+class ConstrainedSession(BaseModel, Session):
     """
     This class is intended to be inherit by user defined classes in which the variables of a model are declared.
     Each declared variable is constrained by a type defined explicitly or deduced from the given default value
     (see examples below).
     All classes inheriting from `ConstrainedSession` will have access to all methods of the :py:class:`Session` class.
 
-    The special :py:class:`ArrayDef` type represents an Array object with constant axes.
+    The special :py:funct:`ConstantAxesArray` type represents an Array object with constant axes.
     This prevents users from modifying the dimensions and/or labels of an array by mistake and make sure that
     the definition of an array remains always valid in the model.
 
@@ -1525,144 +1572,117 @@ class ConstrainedSession(Session):
 
     Examples
     --------
+    >>> FIRST_YEAR = 1991
+    >>> LAST_YEAR = 2070
+    >>> AGE = Axis('age=0..120')
+    >>> GENDER = Axis('gender=male,female')
+    >>> TIME = Axis('time={}..{}'.format(FIRST_YEAR, LAST_YEAR))
 
     >>> class ModelVariables(ConstrainedSession):
-    ...     # declare variables with a default value.
-    ...     # The default value will be used to set the variable if no value is passed at instantiation (see below).
-    ...     # These variables will be constrained by the type deduced from their default values.
-    ...     FIRST_OBS_YEAR = 1991                   # int variable
-    ...     LAST_PROJ_YEAR = 2070                   # int variable
-    ...     AGE = Axis('age=0..120')                # Axis variable
-    ...     GENDER = Axis('gender=male,female')     # Axis variable
-    ...     G_CHILDREN = AGE[:17]                   # Group variable
-    ...     G_ADULTS = AGE[18:]                     # Group variable
-    ...     # declare variables with defined types.
+    ...     # --- declare variables with defined types ---
     ...     # Their values will be defined at runtime but must match the specified type.
-    ...     variant_name = str
-    ...     first_proj_year = int
-    ...     obs_years = Axis
-    ...     proj_years = Axis
-    ...     population_obs = Array
-    ...     population_proj = Array
-    ...     # declare arrays with constant axes
-    ...     mortality_rate = ArrayDef((AGE, GENDER))
+    ...     variant_name: str
+    ...     birth_rate: Array
+    ...     births: Array
+    ...     # --- declare a variable with a default value ---
+    ...     # The default value will be used to set the variable if no value is passed at instantiation (see below).
+    ...     # Such variable will be constrained by the type deduced from its default value.
+    ...     population = zeros((AGE, GENDER, TIME))
+    ...     # --- declare an array with constant axes (without default value) ---
+    ...     mortality_rate: ConstantAxesArray((AGE, GENDER))
+    ...     # --- declare an array with constant axes  (with default value) ---
+    ...     mortality: ConstantAxesArray((AGE, GENDER, TIME)) = 0
 
-    >>> def run_model(variant_name, first_proj_year):
+    >>> def run_model(variant_name):
     ...     # instantiation --> create an instance of the ModelVariables class
-    ...     m = ModelVariables()
-    ...     # ==== setup variables ====
-    ...     # set scalars
-    ...     m.variant_name = variant_name
-    ...     m.first_proj_year = first_proj_year
-    ...     # set axes
-    ...     m.obs_years = Axis(f'time={m.FIRST_OBS_YEAR}..{m.first_proj_year-1}')
-    ...     m.proj_years = Axis(f'time={m.first_proj_year}..{m.LAST_PROJ_YEAR}')
-    ...     # set arrays
-    ...     m.population_obs = zeros((m.AGE, m.GENDER, m.obs_years))
-    ...     m.population_proj = zeros((m.AGE, m.GENDER, m.proj_years))
-    ...     m.mortality_rate = zeros((m.AGE, m.GENDER))
+    ...     m = ModelVariables(
+    ...                       variant_name = variant_name,
+    ...                       birth_rate = zeros((AGE, GENDER)),
+    ...                       births = zeros((AGE, GENDER, TIME)),
+    ...                       mortality_rate = 0,
+    ...                       )
     ...     # ==== model ====
     ...     # some code here
     ...     # ...
+    ...     # axes of arrays 'birth_rate' and 'births' are not protected
+    ...     m.birth_rate = full((AGE, GENDER, TIME), fill_value=0.05)
+    ...     # axes of arrays 'mortality_rate' and 'mortality' are protected (and known)
+    ...     m.mortality_rate = full((AGE, GENDER), fill_value=0.05)
+    ...     m.mortality = 0
+    ...     # it still possible to add undeclared variables but this must be done with caution.
+    ...     m.undeclared_var = 'undeclared_var'
+    ...     # ...
     ...     # ==== output ====
     ...     # save all variables in an HDF5 file
-    ...     m.save('{variant_name}.h5', display=True)
+    ...     m.save('{}.h5'.format(variant_name), display=True)
 
     Content of file 'main.py'
 
-    >>> run_model('projection_2020_2070', first_proj_year=2020)
-    dumping FIRST_OBS_YEAR ... done
-    dumping LAST_PROJ_YEAR ... done
-    dumping AGE ... done
-    dumping GENDER ... done
-    dumping G_CHILDREN ... done
-    dumping G_ADULTS ... done
+    >>> run_model('variant_1')
     dumping variant_name ... done
-    dumping first_proj_year ... done
-    dumping obs_years ... done
-    dumping proj_years ... done
-    dumping population_obs ... done
-    dumping population_proj ... done
+    dumping birth_rate ... done
+    dumping births ... done
     dumping mortality_rate ... done
+    dumping mortality ... done
+    dumping population ... done
+    dumping undeclared_var ... done
     """
+    class Config:
+        # whether to allow arbitrary user types for fields (they are validated simply by checking
+        # if the value is an instance of the type). If False, RuntimeError will be raised on model declaration
+        # (default: False)
+        arbitrary_types_allowed = True
+        # whether to validate field defaults
+        validate_all = True
+        # whether to ignore, allow, or forbid extra attributes during model initialization (and after).
+        # Accepts the string values of 'ignore', 'allow', or 'forbid',
+        # or values of the Extra enum (default: Extra.ignore)
+        extra = Extra.allow
+        # whether to perform validation on assignment to attributes
+        validate_assignment = True
+        # whether or not models are faux-immutable, i.e. whether __setattr__ is allowed.
+        # (default: True)
+        allow_mutation = True
+
     def __init__(self, *args, **kwargs):
-        _cls_attrs = {key: value for key, value in vars(self.__class__).items() if not key.startswith('_')}
-        object.__setattr__(self, '_cls_attrs', _cls_attrs)
+        meta = kwargs.pop('meta', Metadata())
 
-        # need to call Session.__init__() to not fall into an infinite loop later
-        Session.__init__(self, meta=kwargs.pop('meta', None))
+        # create an intermediate Session object to not call the __setattr__
+        # and __setitem__ overridden in the present class
+        s = Session(*args, **kwargs)
 
-        # add declared variables in first place.
-        # add NOT_LOADED tag if no default value has been specified
-        for key, value in _cls_attrs.items():
-            if isinstance(value, (type, ArrayDef)):
-                value = NOT_LOADED
-            self.__setitem__(key, value, skip_check_value=True)
+        # Warning: order of fields is not preserved (seems like fields with default values comes after)
+        items = dict(s.items())
+        BaseModel.__init__(self, **items)
 
-        if len(args) == 1:
-            assert len(kwargs) == 0
-            a0 = args[0]
-            if isinstance(a0, str):
-                # assume a0 is a filename
-                self.load(a0)
-            else:
-                # iterable of tuple or dict-like
-                self.update(a0)
-        else:
-            self.add(*args, **kwargs)
+        items.update(self.__field_defaults__)
+        Session.__init__(self, **items)
+        self.meta = meta
 
-    def load(self, fname, names=None, engine='auto', display=False, **kwargs):
-        super().load(fname, names, engine, display, **kwargs)
-
-    def save(self, fname, names=None, engine='auto', overwrite=True, display=False, **kwargs):
-        for key, value in self.items():
-            if value is NOT_LOADED:
-                warnings.warn(f"The variable '{key}' is declared in the '{self.__class__.__name__}' "
-                              f"class definition but was not set.")
-        super().save(fname, names, engine, overwrite, display, **kwargs)
-
-    def __setitem__(self, key, value, skip_check_value=False):
-        self._check_key_value(key, value, skip_check_value)
-
-        # we need to keep the attribute in sync (initially to mask the class attribute)
-        object.__setattr__(self, key, value)
+    def __setitem__(self, key, value):
+        self._check_key(key)
+        try:
+            # we need to keep the attribute in sync
+            BaseModel.__setattr__(self, key, value)
+        except ValidationError as e:
+            error = e.args[0][0].exc
+            raise error
         self._objects[key] = value
 
-    def __setattr__(self, key, value, skip_check_value=False):
+    def __setattr__(self, key, value):
         if key != 'meta':
-            self._check_key_value(key, value, skip_check_value)
-
-        # update the real attribute
-        object.__setattr__(self, key, value)
-        # update self._objects
+            self._check_key(key)
+            try:
+                # we need to keep the attribute in sync
+                BaseModel.__setattr__(self, key, value)
+            except ValidationError as e:
+                error = e.args[0][0].exc
+                raise error
         Session.__setattr__(self, key, value)
 
-    def _check_key_value(self, key, value, skip_check_value):
-        cls = self.__class__
-        attr_def = getattr(cls, key, None)
-        # check key
-        if attr_def is None:
+    def _check_key(self, key):
+        if key not in self.__fields__.keys():
             warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
-            return
-        if skip_check_value:
-            return
-        # check type (and axes)
-        # --- type defined explicitly
-        if isinstance(attr_def, (type, ArrayDef)):
-            attr_type = Array if isinstance(attr_def, ArrayDef) else attr_def
-        # --- type deduced from the default value
-        else:
-            attr_type = type(attr_def)
-        if not isinstance(value, attr_type):
-            raise TypeError(f"Expected object of type '{attr_type.__name__}' for the variable '{key}'. "
-                            f"Got object of type '{value.__class__.__name__}'.")
-        if isinstance(attr_def, ArrayDef):
-            try:
-                attr_def.axes.check_compatible(value.axes)
-            except ValueError as error:
-                msg = str(error).replace("incompatible axes:", f"incompatible axes for array '{key}':")\
-                    .replace("vs", "was declared as")
-                raise ValueError(msg)
 
 
 def _exclude_private_vars(vars_dict):
