@@ -1649,6 +1649,8 @@ class ConstrainedSession(BaseModel, Session):
 
         # create an intermediate Session object to not call the __setattr__
         # and __setitem__ overridden in the present class
+        # todo: refactor Session.load() to use a private function which returns the handler directly
+        # so that we can get the items out of it and avoid this
         s = Session(*args, **kwargs)
 
         # Warning: order of fields is not preserved (seems like fields with default values comes after)
