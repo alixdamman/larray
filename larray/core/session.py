@@ -6,7 +6,6 @@ import sys
 import re
 import fnmatch
 import warnings
-from copy import copy
 from collections import OrderedDict
 
 import numpy as np
@@ -15,7 +14,6 @@ from typing import Type
 from pydantic import BaseModel, Extra, ValidationError
 from pydantic.fields import ModelField
 
-from larray.core.abstractbases import ABCArray
 from larray.core.metadata import Metadata
 from larray.core.group import Group
 from larray.core.axis import Axis, AxisCollection
