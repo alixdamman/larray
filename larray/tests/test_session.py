@@ -44,7 +44,7 @@ c = 'c'
 d = {}
 e = ndtest([(2, 'a'), (3, 'b')])
 _e = ndtest((3, 3))
-f = ndtest((Axis(3), Axis(2)))
+f = ndtest((Axis(3), Axis(2)), dtype=float)
 g = ndtest([(2, 'a'), (4, 'b')])
 h = ndtest((a3, b2))
 k = ndtest((3, 3))
@@ -635,7 +635,7 @@ class TestConstrainedSession(ConstrainedSession):
     e: Array
     g: Array
     f: ConstrainedArray((Axis(3), Axis(2)))
-    h: ConstrainedArray((a3, b2))
+    h: ConstrainedArray((a3, b2), dtype=int)
 
 
 @pytest.fixture()
@@ -670,6 +670,12 @@ def test_create_constrainedsession_instance(meta):
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=5)
     assert cs.h.axes == AxisCollection((a3, b2))
     assert cs.h.equals(full(axes=(a3, b2), fill_value=5))
+
+    # passing an array with wrong dtype to set a ConstrainedArray
+    with pytest.warns(UserWarning) as caught_warnings:
+        cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=ones((a3, b2)))
+    assert caught_warnings[0].message.args[0] == "Expected array or scalar of dtype int32 for the array 'h' " \
+                                                 "but got array or scalar of dtype float64"
 
     # add the undeclared variable 'i'
     with pytest.warns(UserWarning) as caught_warnings:
@@ -719,6 +725,9 @@ def test_setitem_cs(constrainedsession):
         cs['b'] = ndtest((3, 3))
     assert str(error.value) == expected_error_msg
 
+    # trying to set a ConstrainedArray variable using a scalar -> OK
+    cs['h'] = 5
+
     # trying to set a ConstrainedArray variable using an array with wrong axes -> should fail
     expected_error_msg = """\
 Array 'h' was declared with axes
@@ -733,6 +742,8 @@ AxisCollection([
     with pytest.raises(ValueError) as error:
         cs['h'] = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
+
+    # trying to set a ConstrainedArray variable using an array with wrong dtype -> print a warning
 
 
 def test_getattr_cs(constrainedsession):
@@ -770,6 +781,9 @@ def test_setattr_cs(constrainedsession):
         cs.b = ndtest((3, 3))
     assert str(error.value) == expected_error_msg
 
+    # trying to set a ConstrainedArray variable using a scalar -> OK
+    cs.h = 5
+
     #  trying to set an array using an array with wrong axes -> should fail
     expected_error_msg = """\
 incompatible axes for array 'h':
@@ -779,6 +793,9 @@ Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs.h = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
+
+    # trying to set a ConstrainedArray variable using an array with wrong dtype -> print a warning
+
 
 
 def test_add_cs(constrainedsession):

@@ -18,7 +18,7 @@ from larray.core.metadata import Metadata
 from larray.core.group import Group
 from larray.core.axis import Axis, AxisCollection
 from larray.core.constants import nan
-from larray.core.array import Array, get_axes, ndtest, zeros, zeros_like, full, sequence
+from larray.core.array import Array, get_axes, ndtest, empty, zeros, zeros_like, full, sequence
 from larray.util.misc import float_error_handler_factory, is_interactive_interpreter, renamed_to, inverseop
 from larray.util.compat import basestring, Iterable
 from larray.inout.session import ext_default_engine, get_file_handler
@@ -1494,6 +1494,7 @@ class Session(object):
 # from the types.py module of the 'pydantic' library
 class ConstrainedArrayImpl(Array):
     expected_axes: AxisCollection
+    dtype: np.dtype = np.dtype(float)
 
     # see https://pydantic-docs.helpmanual.io/usage/types/#classes-with-__get_validators__
     @classmethod
@@ -1510,36 +1511,49 @@ class ConstrainedArrayImpl(Array):
         if not (isinstance(value, Array) or np.isscalar(value)):
             raise TypeError(f"Expected object of type '{Array.__name__}' or a scalar for the variable '{field.name}' "
                             f"but got object of type '{type(value).__name__}'")
-        # convert scalar to array with defined axes
-        if not isinstance(value, Array):
-            value = full(axes=cls.expected_axes, fill_value=value)
-        # check that passed array has compatible axes
-        else:
-            # XXX: we do not use 'cls.expected_axes == value.axes' because we consider
-            # that the order of axes is not important
-            try:
-                # XXX: should we allow broadcasting?
-                # if yes, the lines below must be replaced by something like:
-                #    cls.expected_axes.check_compatible(value.axes)
-                #    v = zeros_like(cls.expected_axes)
-                #    v[:] = value
-                #    value = v
-                if len(value.axes) != len(cls.expected_axes):
-                    raise Exception()
-                cls.expected_axes.check_compatible(value.axes)
-            except Exception:
-                msg = f"Array '{field.name}' was declared with axes\n{cls.expected_axes!r} " \
-                      f"but got array with axes\n{value.axes!r}"
-                raise ValueError(msg)
-        return value
+        # check that passed array has same axes
+        if isinstance(value, Array):
+            # XXX: we do not use 'cls.expected_axes == value.axes' or check_compatible()
+            # because we consider that the order of axes is not important
+            missing_axes = cls.expected_axes - value.axes
+            extra_axes = value.axes - cls.expected_axes
+            if missing_axes or extra_axes:
+                raise ValueError(f"Array '{field.name}' was declared with axes\n{cls.expected_axes!r} "
+                                 f"but got array with axes\n{value.axes!r}")
+        # check data-type
+        dtype = value.dtype if isinstance(value, Array) else np.dtype(type(value))
+        if dtype != cls.dtype:
+            warnings.warn(f"Expected array or scalar of dtype {cls.dtype} for the array '{field.name}' "
+                          f"but got array or scalar of dtype {dtype}")
+        # transpose and cast if needed
+        array = empty(axes=cls.expected_axes, dtype=cls.dtype)
+        array[:] = value
+        return array
 
 
 # the implementation of the function below is inspired by the 'conbytes' function
 # from the types.py module of the 'pydantic' library
-def ConstrainedArray(axes) -> Type[Array]:
+def ConstrainedArray(axes: AxisCollection, dtype: np.dtype = float) -> Type[Array]:
+    """
+    Represents a constrained array.
+    Its axes are assumed to be "frozen", meaning they are constant all along the execution of the program.
+    A constrain on the dtype of the data can be also specified.
+
+    Parameters
+    ----------
+    axes: AxisCollection
+        Axes of the constrained array.
+    dtype: data-type, optional
+        Data-type for the constrained array. Defaults to float.
+
+    Returns
+    -------
+    Array
+        Constrained array.
+    """
     if axes is not None and not isinstance(axes, AxisCollection):
         axes = AxisCollection(axes)
-    namespace = {'expected_axes': axes}
+    namespace = {'expected_axes': axes, 'dtype': np.dtype(dtype)}
     return type('ConstrainedArrayValue', (ConstrainedArrayImpl,), namespace)
 
 
@@ -1570,11 +1584,16 @@ class ConstrainedSession(BaseModel, Session):
 
     Examples
     --------
-    >>> FIRST_YEAR = 1991
-    >>> LAST_YEAR = 2070
-    >>> AGE = Axis('age=0..120')
+
+    Content of file 'parameters.py'
+
+    >>> FIRST_YEAR = 2020
+    >>> LAST_YEAR = 2030
+    >>> AGE = Axis('age=0..10')
     >>> GENDER = Axis('gender=male,female')
     >>> TIME = Axis(f'time={FIRST_YEAR}..{LAST_YEAR}')
+
+    Content of file 'model.py'
 
     >>> class ModelVariables(ConstrainedSession):
     ...     # --- declare variables with defined types ---
@@ -1582,46 +1601,108 @@ class ConstrainedSession(BaseModel, Session):
     ...     variant_name: str
     ...     birth_rate: Array
     ...     births: Array
-    ...     # --- declare a variable with a default value ---
+    ...     # --- declare variables with a default value ---
     ...     # The default value will be used to set the variable if no value is passed at instantiation (see below).
     ...     # Such variable will be constrained by the type deduced from its default value.
-    ...     population = zeros((AGE, GENDER, TIME))
-    ...     # --- declare an array with constant axes (without default value) ---
+    ...     # target_age: Group = AGE[18:] >> 'adults'
+    ...     population = zeros((AGE, GENDER, TIME), dtype=int)
+    ...     # --- declare constrained arrays ---
+    ...     # the constrained arrays have axes assumed to be "frozen", meaning they are
+    ...     # constant all along the execution of the program.
     ...     mortality_rate: ConstrainedArray((AGE, GENDER))
-    ...     # --- declare an array with constant axes  (with default value) ---
-    ...     mortality: ConstrainedArray((AGE, GENDER, TIME)) = 0
+    ...     # for constrained arrays, the default value can be given as a scalar.
+    ...     # A dtype can be also optionally specified (defaults to float).
+    ...     deaths: ConstrainedArray((AGE, GENDER, TIME), dtype=int) = 0
 
-    >>> def run_model(variant_name):
-    ...     # instantiation --> create an instance of the ModelVariables class
-    ...     m = ModelVariables(
-    ...                       variant_name = variant_name,
-    ...                       birth_rate = zeros((AGE, GENDER)),
-    ...                       births = zeros((AGE, GENDER, TIME)),
-    ...                       mortality_rate = 0,
-    ...                       )
-    ...     # ==== model ====
-    ...     # some code here
-    ...     # ...
-    ...     # axes of arrays 'birth_rate' and 'births' are not protected
-    ...     m.birth_rate = full((AGE, GENDER, TIME), fill_value=0.05)
-    ...     # axes of arrays 'mortality_rate' and 'mortality' are protected (and known)
-    ...     m.mortality_rate = full((AGE, GENDER), fill_value=0.05)
-    ...     m.mortality = 0
-    ...     # it still possible to add undeclared variables but this must be done with caution.
-    ...     m.undeclared_var = 'undeclared_var'
-    ...     # ...
-    ...     # ==== output ====
-    ...     # save all variables in an HDF5 file
-    ...     m.save(f'{variant_name}.h5', display=True)
+    >>> variant_name = 'variant_1'
+    >>> # instantiation --> create an instance of the ModelVariables class
+    >>> # all variables declared without a default value must be set
+    >>> m = ModelVariables(
+    ...                   variant_name = variant_name,
+    ...                   birth_rate = zeros((AGE, GENDER)),
+    ...                   births = zeros((AGE, GENDER, TIME), dtype=int),
+    ...                   mortality_rate = 0,
+    ...                   )
 
-    Content of file 'main.py'
+    >>> # ==== model ====
+    >>> # axes and dtype of arrays 'birth_rate', 'births' and 'population' are not protected,
+    >>> # leading to potentially unexpected behavior of the model.
+    >>> # example 1: Let's say we want to calculate the new births for the year 2025 and we assume that
+    >>> # the birth rate only differ by gender.
+    >>> # In the line below, we add an additional TIME axis to 'birth_rate' while it was initialized
+    >>> # with the AGE and GENDER axes only
+    >>> m.birth_rate = full((AGE, GENDER, TIME), fill_value=Array([0.045, 0.055], GENDER))
+    >>> # here 'new_births' have the AGE, GENDER and TIME axes instead of the AGE and GENDER axes only
+    >>> new_births = m.population['female', 2025] * m.birth_rate
+    >>> print(new_births.info)
+    11 x 2 x 11
+     age [11]: 0 1 2 ... 8 9 10
+     gender [2]: 'male' 'female'
+     time [11]: 2020 2021 2022 ... 2028 2029 2030
+    dtype: float64
+    memory used: 1.89 Kb
+    >>> # and the line below will crashes
+    >>> m.births[2025] = new_births         # doctest: +NORMALIZE_WHITESPACE
+    Traceback (most recent call last):
+        ...
+    ValueError: Value {time} axis is not present in target subset {age, gender}.
+    A value can only have the same axes or fewer axes than the subset being targeted
+    >>> # now let's try to do the same for deaths and making the same mistake as for 'birth_rate'.
+    >>> # The program will crash now at the first step instead of letting you going further
+    >>> m.mortality_rate = full((AGE, GENDER, TIME), fill_value=sequence(AGE, inc=0.02))# doctest: +NORMALIZE_WHITESPACE
+    Traceback (most recent call last):
+        ...
+    ValueError: Array 'mortality_rate' was declared with axes
+    AxisCollection([
+        Axis([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'age'),
+        Axis(['male', 'female'], 'gender')
+    ]) but got array with axes
+    AxisCollection([
+        Axis([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'age'),
+        Axis(['male', 'female'], 'gender'),
+        Axis([2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030], 'time')
+    ])
 
-    >>> run_model('variant_1')
+    >>> # example 2: let's say we want to calculate the new births for all years.
+    >>> m.birth_rate = full((AGE, GENDER, TIME), fill_value=Array([0.045, 0.055], GENDER))
+    >>> new_births = m.population['female'] * m.birth_rate
+    >>> # here 'new_births' has the same axes as 'births' but is a float array instead of
+    >>> # an integer array as 'births'.
+    >>> # The line below will make the 'births' array to become a float array while
+    >>> # it was initialized as an integer array
+    >>> m.births = new_births
+    >>> print(m.births.info)
+    11 x 11 x 2
+     age [11]: 0 1 2 ... 8 9 10
+     time [11]: 2020 2021 2022 ... 2028 2029 2030
+     gender [2]: 'male' 'female'
+    dtype: float64
+    memory used: 1.89 Kb
+    >>> # now let's try to do the same for deaths.
+    >>> m.mortality_rate = full((AGE, GENDER), fill_value=sequence(AGE, inc=0.02))
+    >>> # here the result of the multiplication of the 'population' array by the 'mortality_rate' array
+    >>> # is automatically converted to an integer array (printing a warning message)
+    >>> m.deaths = m.population * m.mortality_rate
+    >>> print(m.deaths.info)
+    11 x 2 x 11
+     age [11]: 0 1 2 ... 8 9 10
+     gender [2]: 'male' 'female'
+     time [11]: 2020 2021 2022 ... 2028 2029 2030
+    dtype: int32
+    memory used: 968 bytes
+
+    >>> # note that it still possible to add undeclared variables to a constrained session
+    >>> # but this must be done with caution.
+    >>> m.undeclared_var = 'undeclared_var'
+
+    >>> # ==== output ====
+    >>> # save all variables in an HDF5 file
+    >>> m.save(f'{variant_name}.h5', display=True)
     dumping variant_name ... done
     dumping birth_rate ... done
     dumping births ... done
     dumping mortality_rate ... done
-    dumping mortality ... done
+    dumping deaths ... done
     dumping population ... done
     dumping undeclared_var ... done
     """
