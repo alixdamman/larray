@@ -1538,7 +1538,7 @@ class ConstrainedArrayImpl(Array):
 
 # the implementation of the function below is inspired by the 'conbytes' function
 # from the types.py module of the 'pydantic' library
-def ConstantAxesArray(axes) -> Type[ConstrainedArrayImpl]:
+def ConstrainedArray(axes) -> Type[ConstrainedArrayImpl]:
     if axes is not None and not isinstance(axes, AxisCollection):
         axes = AxisCollection(axes)
     namespace = {'expected_axes': axes}
@@ -1589,9 +1589,9 @@ class ConstrainedSession(BaseModel, Session):
     ...     # Such variable will be constrained by the type deduced from its default value.
     ...     population = zeros((AGE, GENDER, TIME))
     ...     # --- declare an array with constant axes (without default value) ---
-    ...     mortality_rate: ConstantAxesArray((AGE, GENDER))
+    ...     mortality_rate: ConstrainedArray((AGE, GENDER))
     ...     # --- declare an array with constant axes  (with default value) ---
-    ...     mortality: ConstantAxesArray((AGE, GENDER, TIME)) = 0
+    ...     mortality: ConstrainedArray((AGE, GENDER, TIME)) = 0
 
     >>> def run_model(variant_name):
     ...     # instantiation --> create an instance of the ModelVariables class

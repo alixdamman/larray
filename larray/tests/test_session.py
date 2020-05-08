@@ -12,7 +12,7 @@ from larray.tests.common import (assert_array_nan_equal, inputpath, tmp_path, me
                                  needs_xlwings, needs_pytables, needs_xlrd)
 from larray.inout.common import _supported_scalars_types
 from larray import (Session, Axis, AxisCollection, Array, Group, isnan, zeros_like, ndtest, ones_like, ones, full,
-                    full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ConstantAxesArray)
+                    full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ConstrainedArray)
 from larray.util.compat import pickle, PY2
 
 
@@ -634,8 +634,8 @@ class TestConstrainedSession(ConstrainedSession):
     d = dict()
     e: Array
     g: Array
-    f: ConstantAxesArray((Axis(3), Axis(2)))
-    h: ConstantAxesArray((a3, b2))
+    f: ConstrainedArray((Axis(3), Axis(2)))
+    h: ConstrainedArray((a3, b2))
 
 
 @pytest.fixture()
@@ -666,7 +666,7 @@ def test_create_constrainedsession_instance(meta):
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=h, meta=meta)
     assert cs.meta == meta
 
-    # passing a scalar to set all elements a ConstantAxesArray
+    # passing a scalar to set all elements a ConstrainedArray
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=5)
     assert cs.h.axes == AxisCollection((a3, b2))
     assert cs.h.equals(full(axes=(a3, b2), fill_value=5))
@@ -707,7 +707,7 @@ def test_setitem_cs(constrainedsession):
     with pytest.raises(TypeError) as error:
         cs['a'] = 0
     assert str(error.value) == expected_error_msg
-    # -> ConstantAxesArray
+    # -> ConstrainedArray
     expected_error_msg = "Expected object of type 'Array' or a scalar for the variable 'h' " \
                          "but got object of type 'ndarray'"
     with pytest.raises(TypeError) as error:
@@ -719,7 +719,7 @@ def test_setitem_cs(constrainedsession):
         cs['b'] = ndtest((3, 3))
     assert str(error.value) == expected_error_msg
 
-    # trying to set a ConstantAxesArray variable using an array with wrong axes -> should fail
+    # trying to set a ConstrainedArray variable using an array with wrong axes -> should fail
     expected_error_msg = """\
 Array 'h' was declared with axes
 AxisCollection([
@@ -758,7 +758,7 @@ def test_setattr_cs(constrainedsession):
     with pytest.raises(TypeError) as error:
         cs.a = 0
     assert str(error.value) == expected_error_msg
-    # -> ConstantAxesArray
+    # -> ConstrainedArray
     expected_error_msg = "Expected object of type 'Array' or a scalar for the variable 'h' " \
                          "but got object of type 'ndarray'"
     with pytest.raises(TypeError) as error:
