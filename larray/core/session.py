@@ -1538,11 +1538,11 @@ class ConstrainedArrayImpl(Array):
 
 # the implementation of the function below is inspired by the 'conbytes' function
 # from the types.py module of the 'pydantic' library
-def ConstrainedArray(axes) -> Type[ConstrainedArrayImpl]:
+def ConstrainedArray(axes) -> Type[Array]:
     if axes is not None and not isinstance(axes, AxisCollection):
         axes = AxisCollection(axes)
     namespace = {'expected_axes': axes}
-    return type('ConstrainedArrayImpl', (ConstrainedArrayImpl,), namespace)
+    return type('ConstrainedArrayValue', (ConstrainedArrayImpl,), namespace)
 
 
 class ConstrainedSession(BaseModel, Session):
