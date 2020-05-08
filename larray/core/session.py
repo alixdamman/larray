@@ -1510,8 +1510,8 @@ class ConstrainedArrayImpl(Array):
         # XXX: not sure we should accept a scalar as value but this allows to not repeat axes
         # when setting a (default) value to the associated array
         if not (isinstance(value, Array) or np.isscalar(value)):
-            raise TypeError("Expected object of type '{}' or a scalar for the variable '{}' "
-                            "but got object of type '{}'".format(Array.__name__, field.name, type(value).__name__))
+            raise TypeError(f"Expected object of type '{Array.__name__}' or a scalar for the variable '{field.name}' "
+                            f"but got object of type '{type(value).__name__}'")
         # convert scalar to array with defined axes
         if not isinstance(value, Array):
             value = full(axes=cls.expected_axes, fill_value=value)
@@ -1530,8 +1530,8 @@ class ConstrainedArrayImpl(Array):
                     raise Exception()
                 cls.expected_axes.check_compatible(value.axes)
             except Exception:
-                msg = "Array '{}' was declared with axes \n{!r} " \
-                      "but got array with axes \n{!r}".format(field.name, cls.expected_axes, value.axes)
+                msg = f"Array '{field.name}' was declared with axes\n{cls.expected_axes!r} " \
+                      f"but got array with axes\n{value.axes!r}"
                 raise ValueError(msg)
         return value
 
@@ -1576,7 +1576,7 @@ class ConstrainedSession(BaseModel, Session):
     >>> LAST_YEAR = 2070
     >>> AGE = Axis('age=0..120')
     >>> GENDER = Axis('gender=male,female')
-    >>> TIME = Axis('time={}..{}'.format(FIRST_YEAR, LAST_YEAR))
+    >>> TIME = Axis(f'time={FIRST_YEAR}..{LAST_YEAR}')
 
     >>> class ModelVariables(ConstrainedSession):
     ...     # --- declare variables with defined types ---
@@ -1614,7 +1614,7 @@ class ConstrainedSession(BaseModel, Session):
     ...     # ...
     ...     # ==== output ====
     ...     # save all variables in an HDF5 file
-    ...     m.save('{}.h5'.format(variant_name), display=True)
+    ...     m.save(f'{variant_name}.h5', display=True)
 
     Content of file 'main.py'
 
