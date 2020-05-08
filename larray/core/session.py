@@ -1547,7 +1547,7 @@ def ConstantAxesArray(axes) -> Type[ConstrainedArrayImpl]:
 
 class ConstrainedSession(BaseModel, Session):
     """
-    This class is intended to be inherit by user defined classes in which the variables of a model are declared.
+    This class is intended to be inherited by user defined classes in which the variables of a model are declared.
     Each declared variable is constrained by a type defined explicitly or deduced from the given default value
     (see examples below).
     All classes inheriting from `ConstrainedSession` will have access to all methods of the :py:class:`Session` class.
@@ -1568,7 +1568,7 @@ class ConstrainedSession(BaseModel, Session):
     The :py:method:`ConstrainedSession.filter`, :py:method:`ConstrainedSession.compact`
     and :py:method:`ConstrainedSession.apply` methods return a simple Session object.
     The type of the declared variables (and the value for the declared constants) will
-    no longer by checked.
+    no longer be checked.
 
     Examples
     --------
