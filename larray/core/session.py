@@ -1553,8 +1553,13 @@ def ConstrainedArray(axes: AxisCollection, dtype: np.dtype = float) -> Type[Arra
     """
     if axes is not None and not isinstance(axes, AxisCollection):
         axes = AxisCollection(axes)
-    namespace = {'expected_axes': axes, 'dtype': np.dtype(dtype)}
-    return type('ConstrainedArrayValue', (ConstrainedArrayImpl,), namespace)
+    _dtype = np.dtype(dtype)
+
+    class ConstrainedArrayValue(ConstrainedArrayImpl):
+        expected_axes = axes
+        dtype = _dtype
+
+    return ConstrainedArrayValue
 
 
 class ConstrainedSession(BaseModel, Session):
