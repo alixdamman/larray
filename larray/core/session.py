@@ -1511,20 +1511,31 @@ class ConstrainedArrayImpl(Array):
         if not (isinstance(value, Array) or np.isscalar(value)):
             raise TypeError(f"Expected object of type '{Array.__name__}' or a scalar for the variable '{field.name}' "
                             f"but got object of type '{type(value).__name__}'")
-        # check that passed array has same axes
+
+        # check axes
         if isinstance(value, Array):
-            # XXX: we do not use 'cls.expected_axes == value.axes' or check_compatible()
-            # because we consider that the order of axes is not important
+            error_msg = f"Array '{field.name}' was declared with axes {cls.expected_axes} but got array with"
+            # check for missing axes
             missing_axes = cls.expected_axes - value.axes
+            if missing_axes:
+                raise ValueError(f"{error_msg} missing {'axes' if len(missing_axes) > 1 else 'axis'} {missing_axes}")
+            # check for extra axes
             extra_axes = value.axes - cls.expected_axes
-            if missing_axes or extra_axes:
-                raise ValueError(f"Array '{field.name}' was declared with axes\n{cls.expected_axes!r} "
-                                 f"but got array with axes\n{value.axes!r}")
+            if extra_axes:
+                raise ValueError(f"{error_msg} extra {'axes' if len(extra_axes) > 1 else 'axis'} {extra_axes}")
+            # check compatible axes
+            try:
+                cls.expected_axes.check_compatible(value.axes)
+            except ValueError as error:
+                error_msg = str(error).replace("incompatible axes", f"Incompatible axis for array '{field.name}'")
+                raise ValueError(error_msg)
+
         # check data-type
         dtype = value.dtype if isinstance(value, Array) else np.dtype(type(value))
         if dtype != cls.dtype:
             warnings.warn(f"Expected array or scalar of dtype {cls.dtype} for the array '{field.name}' "
                           f"but got array or scalar of dtype {dtype}")
+
         # transpose and cast if needed
         array = empty(axes=cls.expected_axes, dtype=cls.dtype)
         array[:] = value

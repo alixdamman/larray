@@ -728,22 +728,36 @@ def test_setitem_cs(constrainedsession):
     # trying to set a ConstrainedArray variable using a scalar -> OK
     cs['h'] = 5
 
+    # trying to set a ConstrainedArray variable using an array with axes in different order -> OK
+    cs['h'] = h.transpose()
+
     # trying to set a ConstrainedArray variable using an array with wrong axes -> should fail
+    # a) missing axis
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with missing axis {b}"
+    with pytest.raises(ValueError) as error:
+        cs['h'] = ndtest(a3)
+    assert str(error.value) == expected_error_msg
+    # b) extra axis
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with extra axis {c}"
+    with pytest.raises(ValueError) as error:
+        cs['h'] = ndtest((a3, b2, 'c=c0..c2'))
+    assert str(error.value) == expected_error_msg
+    # c) incompatible axis
     expected_error_msg = """\
-Array 'h' was declared with axes
-AxisCollection([
-    Axis(['a0', 'a1', 'a2', 'a3'], 'a'),
-    Axis(['b0', 'b1', 'b2', 'b3', 'b4'], 'b')
-]) but got array with axes 
-AxisCollection([
-    Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a'),
-    Axis(['b0', 'b1', 'b2', 'b3', 'b4'], 'b')
-])"""
+Incompatible axis for array 'h':
+Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
+vs
+Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs['h'] = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
 
     # trying to set a ConstrainedArray variable using an array with wrong dtype -> print a warning
+    with pytest.warns(UserWarning) as caught_warnings:
+        cs['h'] = ndtest((a3, b2), dtype=float)
+    assert len(caught_warnings) == 1
+    assert caught_warnings[0].message.args[0] == "Expected array or scalar of dtype int32 for the array 'h' " \
+                                                 "but got array or scalar of dtype float64"
 
 
 def test_getattr_cs(constrainedsession):
@@ -756,7 +770,7 @@ def test_setattr_cs(constrainedsession):
     # only change values of an array -> OK
     cs.h = zeros_like(h)
 
-    # trying to add undeclared variable -> prints a warning message
+    # trying to add an undeclared variable -> prints a warning message
     with pytest.warns(UserWarning) as caught_warnings:
         cs.i = ndtest((3, 3))
     assert len(caught_warnings) == 1
@@ -784,18 +798,36 @@ def test_setattr_cs(constrainedsession):
     # trying to set a ConstrainedArray variable using a scalar -> OK
     cs.h = 5
 
-    #  trying to set an array using an array with wrong axes -> should fail
+    # trying to set a ConstrainedArray variable using an array with axes in different order -> OK
+    cs.h = h.transpose()
+
+    # trying to set a ConstrainedArray variable using an array with wrong axes -> should fail
+    # a) missing axis
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with missing axis {b}"
+    with pytest.raises(ValueError) as error:
+        cs.h = ndtest(a3)
+    assert str(error.value) == expected_error_msg
+    # b) extra axis
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with extra axis {c}"
+    with pytest.raises(ValueError) as error:
+        cs.h = ndtest((a3, b2, 'c=c0..c2'))
+    assert str(error.value) == expected_error_msg
+    # c) incompatible axis
     expected_error_msg = """\
-incompatible axes for array 'h':
+Incompatible axis for array 'h':
 Axis(['a0', 'a1', 'a2', 'a3', 'a4'], 'a')
-was declared as
+vs
 Axis(['a0', 'a1', 'a2', 'a3'], 'a')"""
     with pytest.raises(ValueError) as error:
         cs.h = h.append('a', 0, 'a4')
     assert str(error.value) == expected_error_msg
 
     # trying to set a ConstrainedArray variable using an array with wrong dtype -> print a warning
-
+    with pytest.warns(UserWarning) as caught_warnings:
+        cs.h = ndtest((a3, b2), dtype=float)
+    assert len(caught_warnings) == 1
+    assert caught_warnings[0].message.args[0] == "Expected array or scalar of dtype int32 for the array 'h' " \
+                                                 "but got array or scalar of dtype float64"
 
 
 def test_add_cs(constrainedsession):
