@@ -1733,11 +1733,10 @@ class ConstrainedSession(BaseModel, Session):
         s = Session(*args, **kwargs)
 
         # Warning: order of fields is not preserved (seems like fields with default values comes after)
-        items = dict(s.items())
-        BaseModel.__init__(self, **items)
+        BaseModel.__init__(self, **s)
 
-        items.update(self.__field_defaults__)
-        Session.__init__(self, **items)
+        s.update(self.__field_defaults__)
+        Session.__init__(self, **s)
         self.meta = meta
 
     def __setitem__(self, key, value):
