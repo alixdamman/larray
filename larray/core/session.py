@@ -1668,16 +1668,7 @@ class ConstrainedSession(BaseModel, Session):
     >>> m.mortality_rate = full((AGE, GENDER, TIME), fill_value=sequence(AGE, inc=0.02))# doctest: +NORMALIZE_WHITESPACE
     Traceback (most recent call last):
         ...
-    ValueError: Array 'mortality_rate' was declared with axes
-    AxisCollection([
-        Axis([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'age'),
-        Axis(['male', 'female'], 'gender')
-    ]) but got array with axes
-    AxisCollection([
-        Axis([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'age'),
-        Axis(['male', 'female'], 'gender'),
-        Axis([2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030], 'time')
-    ])
+    ValueError: Array 'mortality_rate' was declared with axes {age, gender} but got array with extra axis {time}
 
     >>> # example 2: let's say we want to calculate the new births for all years.
     >>> m.birth_rate = full((AGE, GENDER, TIME), fill_value=Array([0.045, 0.055], GENDER))
