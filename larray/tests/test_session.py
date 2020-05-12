@@ -1231,5 +1231,25 @@ def test_rsub_cs(constrainedsession):
     assert_array_nan_equal(diff.h, 1 - h)
 
 
+def test_neg_cs(constrainedsession):
+    cs = constrainedsession
+    neg_cs = -cs
+    # --- non-array variables ---
+    assert isnan(neg_cs.b)
+    assert isnan(neg_cs.b024)
+    assert isnan(neg_cs.a)
+    assert isnan(neg_cs.a2)
+    assert isnan(neg_cs.anonymous)
+    assert isnan(neg_cs.a01)
+    assert isnan(neg_cs.ano01)
+    assert isnan(neg_cs.c)
+    assert isnan(neg_cs.d)
+    # --- non constant arrays ---
+    assert_array_nan_equal(neg_cs.e, -e)
+    assert_array_nan_equal(neg_cs.g, -g)
+    assert_array_nan_equal(neg_cs.f, -f)
+    assert_array_nan_equal(neg_cs.h, -h)
+
+
 if __name__ == "__main__":
     pytest.main()
