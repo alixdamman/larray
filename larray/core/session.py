@@ -1514,15 +1514,17 @@ class ConstrainedArrayImpl(Array):
 
         # check axes
         if isinstance(value, Array):
-            error_msg = f"Array '{field.name}' was declared with axes {cls.expected_axes} but got array with"
+            error_msg = f"Array '{field.name}' was declared with axes {cls.expected_axes} but got array " \
+                        f"with axes {value.axes}"
             # check for missing axes
             missing_axes = cls.expected_axes - value.axes
             if missing_axes:
-                raise ValueError(f"{error_msg} missing {'axes' if len(missing_axes) > 1 else 'axis'} {missing_axes}")
+                raise ValueError(f"{error_msg} ({missing_axes} {'axes are' if len(missing_axes) > 1 else 'axis is'} "
+                                 f"missing)")
             # check for extra axes
             extra_axes = value.axes - cls.expected_axes
             if extra_axes:
-                raise ValueError(f"{error_msg} extra {'axes' if len(extra_axes) > 1 else 'axis'} {extra_axes}")
+                raise ValueError(f"{error_msg} (unexpected {extra_axes} {'axes' if len(extra_axes) > 1 else 'axis'})")
             # check compatible axes
             try:
                 cls.expected_axes.check_compatible(value.axes)
@@ -1668,7 +1670,8 @@ class ConstrainedSession(Session, BaseModel):
     >>> m.mortality_rate = full((AGE, GENDER, TIME), fill_value=sequence(AGE, inc=0.02))# doctest: +NORMALIZE_WHITESPACE
     Traceback (most recent call last):
         ...
-    ValueError: Array 'mortality_rate' was declared with axes {age, gender} but got array with extra axis {time}
+    ValueError: Array 'mortality_rate' was declared with axes {age, gender} but got array with axes
+    {age, gender, time} (unexpected {time} axis)
 
     >>> # example 2: let's say we want to calculate the new births for all years.
     >>> m.birth_rate = full((AGE, GENDER, TIME), fill_value=Array([0.045, 0.055], GENDER))

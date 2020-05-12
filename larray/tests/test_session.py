@@ -733,12 +733,13 @@ def test_setitem_cs(constrainedsession):
 
     # trying to set a ConstrainedArray variable using an array with wrong axes -> should fail
     # a) missing axis
-    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with missing axis {b}"
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with axes {a} ({b} axis is missing)"
     with pytest.raises(ValueError) as error:
         cs['h'] = ndtest(a3)
     assert str(error.value) == expected_error_msg
     # b) extra axis
-    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with extra axis {c}"
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with axes {a, b, c} " \
+                         "(unexpected {c} axis)"
     with pytest.raises(ValueError) as error:
         cs['h'] = ndtest((a3, b2, 'c=c0..c2'))
     assert str(error.value) == expected_error_msg
@@ -803,12 +804,13 @@ def test_setattr_cs(constrainedsession):
 
     # trying to set a ConstrainedArray variable using an array with wrong axes -> should fail
     # a) missing axis
-    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with missing axis {b}"
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with axes {a} ({b} axis is missing)"
     with pytest.raises(ValueError) as error:
         cs.h = ndtest(a3)
     assert str(error.value) == expected_error_msg
     # b) extra axis
-    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with extra axis {c}"
+    expected_error_msg = "Array 'h' was declared with axes {a, b} but got array with axes {a, b, c} " \
+                         "(unexpected {c} axis)"
     with pytest.raises(ValueError) as error:
         cs.h = ndtest((a3, b2, 'c=c0..c2'))
     assert str(error.value) == expected_error_msg
