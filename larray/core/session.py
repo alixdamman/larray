@@ -1739,7 +1739,12 @@ class ConstrainedSession(Session, BaseModel):
         # so that we can get the items out of it and avoid this
         s = Session(*args, **kwargs)
 
-        # Warning: order of fields is not preserved (seems like fields with default values comes after)
+        # Warning: order of fields is not preserved.
+        # As of v1.0 of pydantic all fields with annotations (whether annotation-only or with a default value)
+        # will precede all fields without an annotation. Within their respective groups, fields remain in the
+        # order they were defined.
+        # See https://pydantic-docs.helpmanual.io/usage/models/#field-ordering
+        # Furthermore, among fields with annotations those with default values are put after
         BaseModel.__init__(self, **s)
 
         s.update(self.__field_defaults__)

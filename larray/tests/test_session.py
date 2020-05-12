@@ -843,7 +843,13 @@ def test_add_cs(constrainedsession):
 
 
 def test_iter_cs(constrainedsession):
-    test_iter(constrainedsession)
+    # As of v1.0 of pydantic all fields with annotations (whether annotation-only or with a default value)
+    # will precede all fields without an annotation. Within their respective groups, fields remain in the
+    # order they were defined.
+    # See https://pydantic-docs.helpmanual.io/usage/models/#field-ordering
+    # Furthermore, among fields with annotations those with default values are put after
+    expected = [a, a2, a01, e, g, f, h, c, b, b024, anonymous, ano01, d]
+    assertObjListEqual(constrainedsession, expected)
 
 
 def test_filter_cs(constrainedsession):
