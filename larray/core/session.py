@@ -1573,7 +1573,7 @@ def ConstrainedArray(axes: AxisCollection, dtype: np.dtype = float) -> Type[Arra
     return ConstrainedArrayValue
 
 
-class ConstrainedSession(BaseModel, Session):
+class ConstrainedSession(Session, BaseModel):
     """
     This class is intended to be inherited by user defined classes in which the variables of a model are declared.
     Each declared variable is constrained by a type defined explicitly or deduced from the given default value
