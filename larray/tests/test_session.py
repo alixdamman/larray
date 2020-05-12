@@ -853,7 +853,20 @@ def test_iter_cs(constrainedsession):
 
 
 def test_filter_cs(constrainedsession):
-    test_filter(constrainedsession)
+    # see comment in test_iter_cs() about fields ordering
+    cs = constrainedsession
+    cs.ax = 'ax'
+    assertObjListEqual(cs.filter(), [a, a2, a01, e, g, f, h, c, b, b024, anonymous, ano01, d, 'ax'])
+    assertObjListEqual(cs.filter('a*'), [a, a2, a01, anonymous, ano01, 'ax'])
+    assert list(cs.filter('a*', dict)) == []
+    assert list(cs.filter('a*', str)) == ['ax']
+    assert list(cs.filter('a*', Axis)) == [a, a2, anonymous]
+    assert list(cs.filter(kind=Axis)) == [a, a2, b, anonymous]
+    assert list(cs.filter('a01', Group)) == [a01]
+    assert list(cs.filter(kind=Group)) == [a01, b024, ano01]
+    assertObjListEqual(cs.filter(kind=Array), [e, g, f, h])
+    assert list(cs.filter(kind=dict)) == [{}]
+    assert list(cs.filter(kind=(Axis, Group))) == [a, a2, a01, b, b024, anonymous, ano01]
 
 
 def test_names_cs(constrainedsession):
