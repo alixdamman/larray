@@ -1755,6 +1755,10 @@ class ConstrainedSession(BaseModel, Session):
         Session.__init__(self, **s)
         self.meta = meta
 
+    def _check_key(self, key):
+        if key not in self.__fields__.keys():
+            warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
+
     def __setitem__(self, key, value):
         self._check_key(key)
         try:
@@ -1776,9 +1780,6 @@ class ConstrainedSession(BaseModel, Session):
                 raise error
         Session.__setattr__(self, key, value)
 
-    def _check_key(self, key):
-        if key not in self.__fields__.keys():
-            warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
 
 
 def _exclude_private_vars(vars_dict):
