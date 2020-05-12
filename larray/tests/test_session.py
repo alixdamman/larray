@@ -631,7 +631,7 @@ class TestConstrainedSession(ConstrainedSession):
     a01: Group
     ano01 = ano01
     c: str = c
-    d = dict()
+    d = d
     e: Array
     g: Array
     f: ConstrainedArray((Axis(3), Axis(2)))
@@ -1119,8 +1119,8 @@ def test_sub_cs(constrainedsession):
     assert diff.anonymous is anonymous
     assert diff.a01 is a01
     assert diff.ano01 is ano01
-    assert diff.c == c
-    assert diff.d == d
+    assert diff.c is c
+    assert diff.d is d
     # --- array variables ---
     assert_array_nan_equal(diff.e, np.full((2, 3), 1, dtype=np.int32))
     assert_array_nan_equal(diff.g, g)
@@ -1138,8 +1138,8 @@ def test_sub_cs(constrainedsession):
     assert diff.anonymous is anonymous
     assert diff.a01 is a01
     assert diff.ano01 is ano01
-    assert diff.c == c
-    assert diff.d == d
+    assert diff.c is c
+    assert diff.d is d
     # --- non constant arrays ---
     assert_array_nan_equal(diff.e, e - 2)
     assert_array_nan_equal(diff.g, g - 2)
@@ -1158,8 +1158,8 @@ def test_sub_cs(constrainedsession):
     assert diff.anonymous is anonymous
     assert diff.a01 is a01
     assert diff.ano01 is ano01
-    assert diff.c == c
-    assert diff.d == d
+    assert diff.c is c
+    assert diff.d is d
     # --- non constant arrays ---
     assert_array_nan_equal(diff.e, e - ones_like(e))
     assert isnan(diff.g).all()
@@ -1180,8 +1180,8 @@ def test_sub_cs(constrainedsession):
     assert diff.anonymous is anonymous
     assert diff.a01 is a01
     assert diff.ano01 is ano01
-    assert diff.c == c
-    assert diff.d == d
+    assert diff.c is c
+    assert diff.d is d
     # --- non constant arrays ---
     assert_array_nan_equal(diff.e, cs.e - ones(axes))
     assert_array_nan_equal(diff.g, cs.g - ones(axes))
@@ -1204,8 +1204,8 @@ def test_rsub_cs(constrainedsession):
     assert diff.anonymous is anonymous
     assert diff.a01 is a01
     assert diff.ano01 is ano01
-    assert diff.c == c
-    assert diff.d == d
+    assert diff.c is c
+    assert diff.d is d
     # --- non constant arrays ---
     assert_array_nan_equal(diff.e, 2 - e)
     assert_array_nan_equal(diff.g, 2 - g)
@@ -1224,8 +1224,8 @@ def test_rsub_cs(constrainedsession):
     assert diff.anonymous is anonymous
     assert diff.a01 is a01
     assert diff.ano01 is ano01
-    assert diff.c == c
-    assert diff.d == d
+    assert diff.c is c
+    assert diff.d is d
     # --- non constant arrays ---
     assert_array_nan_equal(diff.e, ones_like(e) - e)
     assert isnan(diff.g).all()
