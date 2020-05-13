@@ -677,12 +677,6 @@ def test_create_constrainedsession_instance(meta):
     assert cs.h.axes == AxisCollection((a3, b2))
     assert cs.h.equals(full(axes=(a3, b2), fill_value=5))
 
-    # passing an array with wrong dtype to set a ConstrainedArray
-    with pytest.warns(UserWarning) as caught_warnings:
-        cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=ones((a3, b2)))
-    assert caught_warnings[0].message.args[0] == "Expected array or scalar of dtype int32 for the array 'h' " \
-                                                 "but got array or scalar of dtype float64"
-
     # add the undeclared variable 'i'
     with pytest.warns(UserWarning) as caught_warnings:
         cs = TestConstrainedSession(a, a01, a2=a2, i=5, e=e, f=f, g=g, h=h)
