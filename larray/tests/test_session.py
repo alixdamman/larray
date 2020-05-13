@@ -646,6 +646,7 @@ def constrainedsession():
 def test_create_constrainedsession_instance(meta):
     declared_variable_keys = {'b', 'b024', 'a', 'a2', 'anonymous', 'a01', 'ano01', 'c', 'd', 'e', 'g', 'f', 'h'}
 
+    # setting variables without default values
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=h)
     assert set(cs.keys()) == declared_variable_keys
     assert cs.b.equals(b)
@@ -655,8 +656,8 @@ def test_create_constrainedsession_instance(meta):
     assert cs.anonymous.equals(anonymous)
     assert cs.a01.equals(a01)
     assert cs.ano01.equals(ano01)
-    assert cs.c == c
-    assert cs.d == d
+    assert cs.c is c
+    assert cs.d is d
     assert cs.e.equals(e)
     assert cs.g.equals(g)
     assert cs.f.equals(f)
@@ -665,6 +666,11 @@ def test_create_constrainedsession_instance(meta):
     # metadata
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=h, meta=meta)
     assert cs.meta == meta
+
+    # override default value
+    b_alt = Axis('b=b0..b4')
+    cs = TestConstrainedSession(a, a01, b=b_alt, a2=a2, e=e, f=f, g=g, h=h)
+    assert cs.b is b_alt
 
     # passing a scalar to set all elements a ConstrainedArray
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=5)
