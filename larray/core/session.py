@@ -7,12 +7,19 @@ import re
 import fnmatch
 import warnings
 from collections import OrderedDict
+from abc import ABCMeta
+from copy import deepcopy
 
 import numpy as np
 
-from typing import Type
-from pydantic import BaseModel, Extra, ValidationError
-from pydantic.fields import ModelField
+from typing import TYPE_CHECKING, Type, Optional, Any, Union, Dict, Set, List, Tuple, Callable, no_type_check
+
+from pydantic.fields import ModelField, Undefined
+from pydantic.class_validators import ROOT_KEY, inherit_validators, extract_validators, ValidatorGroup, Validator
+from pydantic.typing import AnyCallable, is_classvar, resolve_annotations
+from pydantic.types import PyObject
+from pydantic.utils import validate_field_name, lenient_issubclass
+from pydantic.main import UNTOUCHED_TYPES, inherit_config, is_valid_field, validate_custom_root_type
 
 from larray.core.metadata import Metadata
 from larray.core.group import Group
@@ -1490,6 +1497,9 @@ class Session(object):
         return res
 
 
+NOT_LOADED = object()
+
+
 # the implementation of the class below is inspired by the 'ConstrainedBytes' class
 # from the types.py module of the 'pydantic' library
 class ConstrainedArrayImpl(Array):
@@ -1575,7 +1585,132 @@ def ConstrainedArray(axes: AxisCollection, dtype: np.dtype = float) -> Type[Arra
     return ConstrainedArrayValue
 
 
-class ConstrainedSession(Session, BaseModel):
+# Simplified version of the BaseConfig class from pydantic:
+# https://github.com/samuelcolvin/pydantic/blob/master/pydantic/main.py#L87
+class BaseConfig:
+    # whether to strip leading and trailing whitespace for str and byte types (default: False)
+    anystr_strip_whitespace = False
+    # the min length for str and byte types (default: 0)
+    min_anystr_length = None
+    # the max length for str and byte types (default: 2 ** 16)
+    max_anystr_length = None
+
+    # whether to allow arbitrary user types for fields (they are validated simply by checking
+    # if the value is an instance of the type). If False, RuntimeError will be raised on model declaration
+    # (default: False)
+    arbitrary_types_allowed = True
+    # whether to validate field defaults
+    validate_all = True
+    # whether to allow or forbid extra attributes during session initialization (and after).
+    # (default: True)
+    allow_extra = True
+    # whether to perform validation on assignment to attributes
+    validate_assignment = True
+    # whether or not models are faux-immutable, i.e. whether __setattr__ is allowed.
+    # (default: True)
+    allow_mutation = True
+
+    @classmethod
+    def get_field_info(cls, name: str) -> Dict[str, Any]:
+        return {}
+
+    @classmethod
+    def prepare_field(cls, field: 'ModelField') -> None:
+        """
+        Optional hook to check or modify fields during model creation.
+        """
+        pass
+
+
+class ConstrainedSession:
+    pass
+
+
+# Simplified version of the ModelMetaclass class from pydantic:
+# https://github.com/samuelcolvin/pydantic/blob/master/pydantic/main.py#L195
+class ModelMetaclass(ABCMeta):
+    @no_type_check  # noqa C901
+    def __new__(mcs, name, bases, namespace, **kwargs):  # noqa C901
+        fields: Dict[str, ModelField] = {}
+        config = BaseConfig
+        validators: Dict[Validator] = {}
+        for base in reversed(bases):
+            if issubclass(base, ConstrainedSession) and base != ConstrainedSession:
+                fields.update(deepcopy(base.__fields__))
+                config = inherit_config(base.__config__, config)
+                validators = inherit_validators(base.__validators__, validators)
+
+        config = inherit_config(namespace.get('Config'), config)
+        validators = inherit_validators(extract_validators(namespace), validators)
+        vg = ValidatorGroup(validators)
+
+        for f in fields.values():
+            f.set_config(config)
+            extra_validators = vg.get_validators(f.name)
+            if extra_validators:
+                f.class_validators.update(extra_validators)
+                # re-run prepare to add extra validators
+                f.populate_validators()
+
+        class_vars = set()
+        if (namespace.get('__module__'), namespace.get('__qualname__')) != ('pydantic.main', 'BaseModel'):
+            annotations = resolve_annotations(namespace.get('__annotations__', {}), namespace.get('__module__', None))
+            untouched_types = UNTOUCHED_TYPES
+            # annotation only fields need to come first in fields
+            for ann_name, ann_type in annotations.items():
+                if is_classvar(ann_type):
+                    class_vars.add(ann_name)
+                elif is_valid_field(ann_name):
+                    validate_field_name(bases, ann_name)
+                    value = namespace.get(ann_name, Undefined)
+                    if (
+                        isinstance(value, untouched_types)
+                        and ann_type != PyObject
+                        and not lenient_issubclass(getattr(ann_type, '__origin__', None), Type)
+                    ):
+                        continue
+                    fields[ann_name] = ModelField.infer(
+                        name=ann_name,
+                        value=value,
+                        annotation=ann_type,
+                        class_validators=vg.get_validators(ann_name),
+                        config=config,
+                    )
+
+            for var_name, value in namespace.items():
+                if (
+                    var_name not in annotations
+                    and is_valid_field(var_name)
+                    and not isinstance(value, untouched_types)
+                    and var_name not in class_vars
+                ):
+                    validate_field_name(bases, var_name)
+                    inferred = ModelField.infer(
+                        name=var_name,
+                        value=value,
+                        annotation=annotations.get(var_name),
+                        class_validators=vg.get_validators(var_name),
+                        config=config,
+                    )
+                    if var_name in fields and inferred.type_ != fields[var_name].type_:
+                        raise TypeError(
+                            f'The type of {name}.{var_name} differs from the new default value; '
+                            f'if you wish to change the type of this field, please use a type annotation'
+                        )
+                    fields[var_name] = inferred
+
+        vg.check_for_unused()
+        new_namespace = {
+            '__config__': config,
+            '__fields__': fields,
+            '__field_defaults__': {n: f.default for n, f in fields.items() if not f.required},
+            '__validators__': vg.validators,
+            **{n: v for n, v in namespace.items() if n not in fields},
+        }
+        return super().__new__(mcs, name, bases, new_namespace, **kwargs)
+
+
+class ConstrainedSession(Session, metaclass=ModelMetaclass):
     """
     This class is intended to be inherited by user defined classes in which the variables of a model are declared.
     Each declared variable is constrained by a type defined explicitly or deduced from the given default value
@@ -1593,12 +1728,32 @@ class ConstrainedSession(Session, BaseModel):
     As for normal Session objects, it is still possible to add undeclared variables to instances of
     classes inheriting from `ConstrainedSession` but this must be done with caution.
 
+    Parameters
+    ----------
+    *args : str or dict of {str: object} or iterable of tuples (str, object)
+        Path to the file containing the session to load or
+        list/tuple/dictionary containing couples (name, object).
+    **kwargs : dict of {str: object}
+
+        * Objects to add written as name=object
+        * meta : list of pairs or dict or OrderedDict or Metadata, optional
+            Metadata (title, description, author, creation_date, ...) associated with the array.
+            Keys must be strings. Values must be of type string, int, float, date, time or datetime.
+        * allow_extra: bool, optional
+            Whether to allow or forbid extra variables during session initialization (and after). Defaults to True.
+        * allow_mutation: bool, optional
+            Whether or not variables can be modified after initialization. Defaults to True.
+
     Warnings
     --------
     The :py:method:`ConstrainedSession.filter`, :py:method:`ConstrainedSession.compact`
     and :py:method:`ConstrainedSession.apply` methods return a simple Session object.
     The type of the declared variables (and the value for the declared constants) will
     no longer be checked.
+
+    See Also
+    --------
+    Session
 
     Examples
     --------
@@ -1716,69 +1871,95 @@ class ConstrainedSession(Session, BaseModel):
     dumping population ... done
     dumping undeclared_var ... done
     """
-    class Config:
-        # whether to allow arbitrary user types for fields (they are validated simply by checking
-        # if the value is an instance of the type). If False, RuntimeError will be raised on model declaration
-        # (default: False)
-        arbitrary_types_allowed = True
-        # whether to validate field defaults
-        validate_all = True
-        # whether to ignore, allow, or forbid extra attributes during model initialization (and after).
-        # Accepts the string values of 'ignore', 'allow', or 'forbid',
-        # or values of the Extra enum (default: Extra.ignore)
-        extra = Extra.allow
-        # whether to perform validation on assignment to attributes
-        validate_assignment = True
-        # whether or not models are faux-immutable, i.e. whether __setattr__ is allowed.
-        # (default: True)
-        allow_mutation = True
+    if TYPE_CHECKING:
+        # populated by the metaclass, defined here to help IDEs only
+        __fields__: Dict[str, ModelField] = {}
+        __field_defaults__: Dict[str, Any] = {}
+        __validators__: Dict[str, AnyCallable] = {}
+        __config__: Type[BaseConfig] = BaseConfig
 
+    # Warning: order of fields is not preserved.
+    # As of v1.0 of pydantic all fields with annotations (whether annotation-only or with a default value)
+    # will precede all fields without an annotation. Within their respective groups, fields remain in the
+    # order they were defined.
+    # See https://pydantic-docs.helpmanual.io/usage/models/#field-ordering
+    # Furthermore, among fields with annotations those with default values are put after
+    # Uses something other than `self` the first arg to allow "self" as a settable attribute
     def __init__(self, *args, **kwargs):
         meta = kwargs.pop('meta', Metadata())
+        self.__config__.allow_extra = kwargs.pop('allow_extra', True)
+        self.__config__.allow_mutation = kwargs.pop('allow_mutation', True)
+
+        Session.__init__(self, meta=meta)
 
         # create an intermediate Session object to not call the __setattr__
-        # and __setitem__ overridden in the present class
+        # and __setitem__ overridden in the present class and in case a filepath
+        # is given as only argument
         # todo: refactor Session.load() to use a private function which returns the handler directly
         # so that we can get the items out of it and avoid this
-        s = Session(*args, **kwargs)
+        input_data = dict(Session(*args, **kwargs))
 
-        # Warning: order of fields is not preserved.
-        # As of v1.0 of pydantic all fields with annotations (whether annotation-only or with a default value)
-        # will precede all fields without an annotation. Within their respective groups, fields remain in the
-        # order they were defined.
-        # See https://pydantic-docs.helpmanual.io/usage/models/#field-ordering
-        # Furthermore, among fields with annotations those with default values are put after
-        BaseModel.__init__(self, **s)
+        # --- declared variables
+        for name, field in self.__fields__.items():
+            value = input_data.pop(field.name, NOT_LOADED)
 
-        s.update(self.__field_defaults__)
-        Session.__init__(self, **s)
-        self.meta = meta
+            if value is NOT_LOADED:
+                if field.default is None:
+                    warnings.warn(f"No value passed for the declared variable {field.name}")
+                    object.__setattr__(self, name, value)
+                else:
+                    self.__setattr__(name, field.default, skip_allow_mutation=True)
+            else:
+                self.__setattr__(name, value, skip_allow_mutation=True)
 
-    def _check_key(self, key):
-        if key not in self.__fields__.keys():
-            warnings.warn(f"'{key}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
+        # --- undeclared variables
+        for name, value in input_data.items():
+            self.__setattr__(name, value, skip_allow_mutation=True)
 
-    def __setitem__(self, key, value):
-        self._check_key(key)
-        try:
-            # we need to keep the attribute in sync
-            BaseModel.__setattr__(self, key, value)
-        except ValidationError as e:
-            error = e.args[0][0].exc
-            raise error
-        self._objects[key] = value
+    # code of the method below has been partly borrowed from pydantic.BaseModel.__setattr__()
+    def _check_key_value(self, name: str, value: Any, skip_allow_mutation: bool) -> Any:
+        if not self.__config__.allow_extra and name not in self.__fields__:
+            raise ValueError(f"Variable '{name}' is not declared in '{self.__class__.__name__}'. "
+                             f"Adding undeclared variables is forbidden. "
+                             f"List of declared variables is: {list(self.__fields__.keys())}.")
+        if not skip_allow_mutation and not self.__config__.allow_mutation:
+            raise TypeError(f"Cannot change the value of the variable '{name}' since '{self.__class__.__name__}' "
+                            f"is immutable and does not support item assignment")
+        known_field = self.__fields__.get(name, None)
+        if known_field:
+            value, error_ = known_field.validate(value, self.dict(exclude={name}), loc=name, cls=self.__class__)
+            if error_:
+                raise error_.exc
+        else:
+            warnings.warn(f"'{name}' is not declared in '{self.__class__.__name__}'", stacklevel=2)
+        return value
 
-    def __setattr__(self, key, value):
+    def __setitem__(self, key, value, skip_allow_mutation=False):
         if key != 'meta':
-            self._check_key(key)
-            try:
-                # we need to keep the attribute in sync
-                BaseModel.__setattr__(self, key, value)
-            except ValidationError as e:
-                error = e.args[0][0].exc
-                raise error
+            value = self._check_key_value(key, value, skip_allow_mutation)
+            # we need to keep the attribute in sync
+            object.__setattr__(self, key, value)
+            self._objects[key] = value
+
+    def __setattr__(self, key, value, skip_allow_mutation=False):
+        if key != 'meta':
+            value = self._check_key_value(key, value, skip_allow_mutation)
+            # we need to keep the attribute in sync
+            object.__setattr__(self, key, value)
         Session.__setattr__(self, key, value)
 
+    def __getstate__(self) -> Dict[str, Any]:
+        return {'__dict__': self.__dict__}
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        object.__setattr__(self, '__dict__', state['__dict__'])
+
+    def dict(self, exclude: Set[str] = None):
+        d = dict(self.items())
+        for name in exclude:
+            if name in d:
+                del d[name]
+        return d
 
 
 def _exclude_private_vars(vars_dict):

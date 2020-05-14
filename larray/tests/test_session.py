@@ -11,6 +11,7 @@ import pytest
 from larray.tests.common import (assert_array_nan_equal, inputpath, tmp_path, meta,
                                  needs_xlwings, needs_pytables, needs_xlrd)
 from larray.inout.common import _supported_scalars_types
+from larray.core.session import NOT_LOADED
 from larray import (Session, Axis, AxisCollection, Array, Group, isnan, zeros_like, ndtest, ones_like, ones, full,
                     full_like, stack, local_arrays, global_arrays, arrays, ConstrainedSession, ConstrainedArray)
 from larray.util.compat import pickle, PY2
@@ -672,6 +673,9 @@ def test_create_constrainedsession_instance(meta):
     cs = TestConstrainedSession(a, a01, b=b_alt, a2=a2, e=e, f=f, g=g, h=h)
     assert cs.b is b_alt
 
+    # test for "NOT_LOADED" variables
+    # TODO: to be done
+
     # passing a scalar to set all elements a ConstrainedArray
     cs = TestConstrainedSession(a, a01, a2=a2, e=e, f=f, g=g, h=5)
     assert cs.h.axes == AxisCollection((a3, b2))
@@ -849,8 +853,7 @@ def test_iter_cs(constrainedsession):
     # will precede all fields without an annotation. Within their respective groups, fields remain in the
     # order they were defined.
     # See https://pydantic-docs.helpmanual.io/usage/models/#field-ordering
-    # Furthermore, among fields with annotations those with default values are put after
-    expected = [a, a2, a01, e, g, f, h, c, b, b024, anonymous, ano01, d]
+    expected = [a, a2, a01, c, e, g, f, h, b, b024, anonymous, ano01, d]
     assertObjListEqual(constrainedsession, expected)
 
 
@@ -858,7 +861,7 @@ def test_filter_cs(constrainedsession):
     # see comment in test_iter_cs() about fields ordering
     cs = constrainedsession
     cs.ax = 'ax'
-    assertObjListEqual(cs.filter(), [a, a2, a01, e, g, f, h, c, b, b024, anonymous, ano01, d, 'ax'])
+    assertObjListEqual(cs.filter(), [a, a2, a01, c, e, g, f, h, b, b024, anonymous, ano01, d, 'ax'])
     assertObjListEqual(cs.filter('a*'), [a, a2, a01, anonymous, ano01, 'ax'])
     assert list(cs.filter('a*', dict)) == []
     assert list(cs.filter('a*', str)) == ['ax']
