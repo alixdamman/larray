@@ -815,13 +815,13 @@ Load/Save
    Session.to_hdf
    Session.to_pickle
 
-ArrayDef
-========
+ConstrainedArray
+================
 
 .. autosummary::
    :toctree: _generated/
 
-   ArrayDef
+   ConstrainedArray
 
 ConstrainedSession
 ==================
@@ -830,6 +830,14 @@ ConstrainedSession
    :toctree: _generated/
 
    ConstrainedSession
+
+Parameters
+==========
+
+.. autosummary::
+   :toctree: _generated/
+
+   Parameters
 
 .. _api-editor:
 
