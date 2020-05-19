@@ -76,6 +76,9 @@ class ConstrainedArrayImpl(Array):
 # the implementation of the function below is inspired by the 'conbytes' function
 # from the types.py module of the 'pydantic' library
 def ConstrainedArray(axes: AxisCollection, dtype: np.dtype = float) -> Type[Array]:
+    # XXX: for a very weird reason I don't know, I have to put the fake import below
+    #      to get autocompletion from PyCharm
+    from larray.core.constrained import ConstrainedArrayImpl
     """
     Represents a constrained array.
     Its axes are assumed to be "frozen", meaning they are constant all along the execution of the program.
