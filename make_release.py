@@ -38,7 +38,7 @@ def update_metapackage(public_release, repository, release_name, **extra_kwargs)
     #   https://github.com/larray-project/larray-editor/issues/166
     check_call(['conda', 'metapackage', 'larrayenv', version, '--dependencies', f'larray =={version}',
                 f'larray-editor =={version}', f'larray_eurostat =={version}',
-                "qtconsole", "matplotlib", "pyqt", "qtpy", "pytables",
+                "qtconsole", "matplotlib", "pyqt", "qtpy", "pytables", "pydantic",
                 "xlsxwriter", "xlrd", "openpyxl", "xlwings", "ipykernel !=5.0,!=5.1.0",
                 '--user', 'larray-project',
                 '--home', 'http://github.com/larray-project/larray',
