@@ -2,7 +2,8 @@ import os
 import csv
 import warnings
 from glob import glob
-from collections import OrderedDict
+
+from typing import List, Tuple
 
 import pandas as pd
 import numpy as np
@@ -19,7 +20,7 @@ from larray.example import get_example_filepath
 
 @deprecate_kwarg('nb_index', 'nb_axes', arg_converter=lambda x: x + 1)
 def read_csv(filepath_or_buffer, nb_axes=None, index_col=None, sep=',', headersep=None, fill_value=nan,
-             na=nan, sort_rows=False, sort_columns=False, wide=True, dialect='larray', **kwargs):
+             na=nan, sort_rows=False, sort_columns=False, wide=True, dialect='larray', **kwargs) -> Array:
     r"""
     Reads csv file and returns an array with the contents.
 
@@ -229,11 +230,11 @@ def read_csv(filepath_or_buffer, nb_axes=None, index_col=None, sep=',', headerse
     return df_asarray(df, sort_rows=sort_rows, sort_columns=sort_columns, fill_value=fill_value, raw=raw, wide=wide)
 
 
-def read_tsv(filepath_or_buffer, **kwargs):
+def read_tsv(filepath_or_buffer, **kwargs) -> Array:
     return read_csv(filepath_or_buffer, sep='\t', **kwargs)
 
 
-def read_eurostat(filepath_or_buffer, **kwargs):
+def read_eurostat(filepath_or_buffer, **kwargs) -> Array:
     r"""Reads EUROSTAT TSV (tab-separated) file into an array.
 
     EUROSTAT TSV files are special because they use tabs as data separators but comas to separate headers.
@@ -254,7 +255,9 @@ def read_eurostat(filepath_or_buffer, **kwargs):
 
 @register_file_handler('pandas_csv', 'csv')
 class PandasCSVHandler(FileHandler):
-    def __init__(self, fname, overwrite_file=False, sep=','):
+    sep: str
+
+    def __init__(self, fname, overwrite_file=False, sep=',') -> None:
         super(PandasCSVHandler, self).__init__(fname, overwrite_file)
         self.sep = sep
         self.axes = None
@@ -271,20 +274,20 @@ class PandasCSVHandler(FileHandler):
             self.pattern = os.path.join(fname, '*.csv')
             self.directory = fname
 
-    def _get_original_file_name(self):
+    def _get_original_file_name(self) -> None:
         pass
 
-    def _to_filepath(self, key):
+    def _to_filepath(self, key) -> str:
         if self.directory is not None:
             return os.path.join(self.directory, '{}.csv'.format(key))
         else:
             return key
 
-    def _open_for_read(self):
+    def _open_for_read(self) -> None:
         if self.directory and not os.path.isdir(self.directory):
             raise ValueError("Directory '{}' does not exist".format(self.directory))
 
-    def _open_for_write(self):
+    def _open_for_write(self) -> None:
         if self.directory is not None:
             try:
                 os.makedirs(self.directory)
@@ -292,7 +295,7 @@ class PandasCSVHandler(FileHandler):
                 if not os.path.isdir(self.directory):
                     raise ValueError("Path {} must represent a directory".format(self.directory))
 
-    def list_items(self):
+    def list_items(self) -> List[Tuple[str, str]]:
         fnames = glob(self.pattern) if self.pattern is not None else []
         # drop directory
         fnames = [os.path.basename(fname) for fname in fnames]
@@ -307,19 +310,19 @@ class PandasCSVHandler(FileHandler):
         items += [(name, 'Array') for name in fnames]
         return items
 
-    def _read_item(self, key, type, *args, **kwargs):
-        if type == 'Array':
+    def _read_item(self, key, typename, *args, **kwargs) -> Array:
+        if typename == 'Array':
             return read_csv(self._to_filepath(key), *args, **kwargs)
         else:
             raise TypeError()
 
-    def _dump_item(self, key, value, *args, **kwargs):
+    def _dump_item(self, key, value, *args, **kwargs) -> None:
         if isinstance(value, Array):
             value.to_csv(self._to_filepath(key), *args, **kwargs)
         else:
             raise TypeError()
 
-    def _read_metadata(self):
+    def _read_metadata(self) -> Metadata:
         filepath = self._to_filepath('__metadata__')
         if os.path.isfile(filepath):
             meta = read_csv(filepath, wide=False)
@@ -327,13 +330,13 @@ class PandasCSVHandler(FileHandler):
         else:
             return Metadata()
 
-    def _dump_metadata(self, metadata):
+    def _dump_metadata(self, metadata) -> None:
         if len(metadata) > 0:
             meta = asarray(metadata)
             meta.to_csv(self._to_filepath('__metadata__'), sep=self.sep, wide=False, value_name='')
 
-    def save(self):
+    def save(self) -> None:
         pass
 
-    def close(self):
+    def close(self) -> None:
         pass

@@ -3,6 +3,8 @@ import shutil
 import pickle
 from datetime import date, time, datetime
 
+from typing import Dict, Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -32,12 +34,12 @@ def assertObjListEqual(got, expected):
 a = Axis('a=a0..a2')
 a2 = Axis('a=a0..a4')
 anonymous = Axis(4)
-a01 = a['a0,a1'] >> 'a01'
+a01 = a['a0,a1'] >> 'a01'           # type: ignore[operator] # Unsupported left operand type for >> (List/Tuple[Group])
 ano01 = a['a0,a1']
 b = Axis('b=0..4')
-b024 = b[[0, 2, 4]] >> 'b024'
+b024 = b[[0, 2, 4]] >> 'b024'       # type: ignore[operator] # Unsupported left operand type for >> (List/Tuple[Group])
 c = 'c'
-d = {}
+d: Dict[Any, Any] = {}
 e = ndtest([(2, 'a'), (3, 'b')])
 _e = ndtest((3, 3))
 f = ndtest((Axis(3), Axis(2)))

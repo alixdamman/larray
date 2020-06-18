@@ -1,17 +1,17 @@
 import numpy as np
 
 
-nan = np.nan
+nan: float = np.nan
 r"NaN (Not a Number)"
 
-inf = np.inf
+inf: float = np.inf
 r":math:`\infty` (infinite)"
 
-pi = np.pi
+pi: float = np.pi
 r":math:`\pi`"
 
-e = np.e
+e: float = np.e
 r":math:`e`"
 
-euler_gamma = np.euler_gamma
+euler_gamma: float = np.euler_gamma
 r"Euler's :math:`\gamma`"

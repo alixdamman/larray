@@ -2,9 +2,12 @@ import os
 from datetime import date, time, datetime
 from collections import OrderedDict
 
+from typing import Any, Union, List, Tuple, Dict, Optional
+
 from larray.core.axis import Axis
 from larray.core.group import Group
 from larray.core.array import Array
+from larray.core.metadata import Metadata
 
 
 # all formats
@@ -17,7 +20,7 @@ _supported_types = _supported_larray_types + _supported_scalars_types
 _supported_typenames = {cls.__name__ for cls in _supported_types}
 
 
-def _get_index_col(nb_axes=None, index_col=None, wide=True):
+def _get_index_col(nb_axes=None, index_col=None, wide=True) -> List[Union[range, int]]:
     if not wide:
         if nb_axes is not None or index_col is not None:
             raise ValueError("`nb_axes` or `index_col` argument cannot be used when `wide` argument is False")
@@ -46,62 +49,66 @@ class FileHandler(object):
     fname : str
         Filename.
     """
-    def __init__(self, fname, overwrite_file=False):
+    fname: str
+    original_file_name: Optional[str]
+    overwrite_file: bool
+
+    def __init__(self, fname, overwrite_file=False) -> None:
         self.fname = fname
         self.original_file_name = None
         self.overwrite_file = overwrite_file
 
-    def _open_for_read(self):
+    def _open_for_read(self) -> None:
         raise NotImplementedError()
 
-    def _open_for_write(self):
+    def _open_for_write(self) -> None:
         raise NotImplementedError()
 
-    def list_items(self):
+    def list_items(self) -> List[Tuple[str, str]]:
         r"""
         Return list containing pairs (name, type) for all stored objects
         """
         raise NotImplementedError()
 
-    def _read_item(self, key, type, *args, **kwargs):
+    def _read_item(self, key, typename, *args, **kwargs) -> Any:
         r"""Read item"""
         raise NotImplementedError()
 
-    def _read_metadata(self):
+    def _read_metadata(self) -> Metadata:
         r"""Read metadata"""
         raise NotImplementedError()
 
-    def _dump_item(self, key, value, *args, **kwargs):
+    def _dump_item(self, key, value, *args, **kwargs) -> None:
         r"""Dump item. Raises an TypeError if type not taken into account by the FileHandler subclass."""
         raise NotImplementedError()
 
-    def _dump_metadata(self, metadata):
+    def _dump_metadata(self, metadata) -> None:
         r"""Dump metadata"""
         raise NotImplementedError()
 
-    def save(self):
+    def save(self) -> None:
         r"""
         Saves items in file.
         """
         pass
 
-    def close(self):
+    def close(self) -> None:
         r"""
         Closes file.
         """
         raise NotImplementedError()
 
-    def _get_original_file_name(self):
+    def _get_original_file_name(self) -> None:
         if self.overwrite_file and os.path.isfile(self.fname):
             self.original_file_name = self.fname
             self.fname = '{}~{}'.format(*os.path.splitext(self.fname))
 
-    def _update_original_file(self):
+    def _update_original_file(self) -> None:
         if self.original_file_name is not None and os.path.isfile(self.fname):
             os.remove(self.original_file_name)
             os.rename(self.fname, self.original_file_name)
 
-    def read(self, keys, *args, **kwargs):
+    def read(self, keys, *args, **kwargs) -> Tuple[Metadata, Dict[str, Any]]:
         r"""
         Reads file content (HDF, Excel, CSV, ...) and returns a dictionary containing loaded objects.
 
@@ -147,7 +154,7 @@ class FileHandler(object):
         self.close()
         return metadata, res
 
-    def dump(self, metadata, key_values, *args, **kwargs):
+    def dump(self, metadata, key_values, *args, **kwargs) -> None:
         r"""
         Dumps objects corresponding to keys in file in HDF, Excel, CSV, ... format
 

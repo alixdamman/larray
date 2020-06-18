@@ -1,6 +1,6 @@
-import os
 import warnings
-from collections import OrderedDict
+
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -10,9 +10,8 @@ except ImportError:
     xw = None
 
 from larray.core.array import Array, asarray
-from larray.core.axis import Axis
 from larray.core.constants import nan
-from larray.core.group import Group, _translate_sheet_name
+from larray.core.group import _translate_sheet_name
 from larray.core.metadata import Metadata
 from larray.util.misc import deprecate_kwarg
 from larray.inout.session import register_file_handler
@@ -29,7 +28,7 @@ __all__ = ['read_excel']
 @deprecate_kwarg('nb_index', 'nb_axes', arg_converter=lambda x: x + 1)
 @deprecate_kwarg('sheetname', 'sheet')
 def read_excel(filepath, sheet=0, nb_axes=None, index_col=None, fill_value=nan, na=nan,
-               sort_rows=False, sort_columns=False, wide=True, engine=None, range=slice(None), **kwargs):
+               sort_rows=False, sort_columns=False, wide=True, engine=None, range=slice(None), **kwargs) -> Array:
     r"""
     Reads excel file from sheet name and returns an Array with the contents
 
@@ -227,16 +226,16 @@ class PandasExcelHandler(FileHandler):
     r"""
     Handler for Excel files using Pandas.
     """
-    def __init__(self, fname, overwrite_file=False):
+    def __init__(self, fname, overwrite_file=False) -> None:
         super(PandasExcelHandler, self).__init__(fname, overwrite_file)
 
-    def _open_for_read(self):
+    def _open_for_read(self) -> None:
         self.handle = pd.ExcelFile(self.fname)
 
-    def _open_for_write(self):
+    def _open_for_write(self) -> None:
         self.handle = pd.ExcelWriter(self.fname)
 
-    def list_items(self):
+    def list_items(self) -> List[Tuple[str, str]]:
         sheet_names = self.handle.sheet_names
         items = []
         try:
@@ -246,21 +245,21 @@ class PandasExcelHandler(FileHandler):
         items += [(name, 'Array') for name in sheet_names]
         return items
 
-    def _read_item(self, key, type, *args, **kwargs):
-        if type == 'Array':
+    def _read_item(self, key, typename, *args, **kwargs) -> Array:
+        if typename == 'Array':
             df = self.handle.parse(key, *args, **kwargs)
             return df_asarray(df, raw=True)
         else:
             raise TypeError()
 
-    def _dump_item(self, key, value, *args, **kwargs):
+    def _dump_item(self, key, value, *args, **kwargs) -> None:
         kwargs['engine'] = 'xlsxwriter'
         if isinstance(value, Array):
             value.to_excel(self.handle, key, *args, **kwargs)
         else:
             raise TypeError()
 
-    def _read_metadata(self):
+    def _read_metadata(self) -> Metadata:
         sheet_meta = '__metadata__'
         if sheet_meta in self.handle.sheet_names:
             meta = read_excel(self.handle, sheet_meta, engine='xlrd', wide=False)
@@ -268,15 +267,15 @@ class PandasExcelHandler(FileHandler):
         else:
             return Metadata()
 
-    def _dump_metadata(self, metadata):
+    def _dump_metadata(self, metadata) -> None:
         if len(metadata) > 0:
             metadata = asarray(metadata)
             metadata.to_excel(self.handle, '__metadata__', engine='xlsxwriter', wide=False, value_name='')
 
-    def save(self):
+    def save(self) -> None:
         pass
 
-    def close(self):
+    def close(self) -> None:
         self.handle.close()
 
 
@@ -285,20 +284,20 @@ class XLWingsHandler(FileHandler):
     r"""
     Handler for Excel files using XLWings.
     """
-    def __init__(self, fname, overwrite_file=False):
+    def __init__(self, fname, overwrite_file=False) -> None:
         super(XLWingsHandler, self).__init__(fname, overwrite_file)
 
-    def _get_original_file_name(self):
+    def _get_original_file_name(self) -> None:
         # for XLWingsHandler, no need to create a temporary file, the job is already done in the Workbook class
         pass
 
-    def _open_for_read(self):
+    def _open_for_read(self) -> None:
         self.handle = open_excel(self.fname)
 
-    def _open_for_write(self):
+    def _open_for_write(self) -> None:
         self.handle = open_excel(self.fname, overwrite_file=self.overwrite_file)
 
-    def list_items(self):
+    def list_items(self) -> List[Tuple[str, str]]:
         sheet_names = self.handle.sheet_names()
         items = []
         try:
@@ -308,19 +307,19 @@ class XLWingsHandler(FileHandler):
         items += [(name, 'Array') for name in sheet_names]
         return items
 
-    def _read_item(self, key, type, *args, **kwargs):
-        if type == 'Array':
+    def _read_item(self, key, typename, *args, **kwargs) -> Array:
+        if typename == 'Array':
             return self.handle[key].load(*args, **kwargs)
         else:
             raise TypeError()
 
-    def _dump_item(self, key, value, *args, **kwargs):
+    def _dump_item(self, key, value, *args, **kwargs) -> None:
         if isinstance(value, Array):
             self.handle[key] = value.dump(*args, **kwargs)
         else:
             raise TypeError()
 
-    def _read_metadata(self):
+    def _read_metadata(self) -> Metadata:
         sheet_meta = '__metadata__'
         if sheet_meta in self.handle:
             meta = self.handle[sheet_meta].load(wide=False)
@@ -328,13 +327,13 @@ class XLWingsHandler(FileHandler):
         else:
             return Metadata()
 
-    def _dump_metadata(self, metadata):
+    def _dump_metadata(self, metadata) -> None:
         if len(metadata) > 0:
             metadata = asarray(metadata)
             self.handle['__metadata__'] = metadata.dump(wide=False, value_name='')
 
-    def save(self):
+    def save(self) -> None:
         self.handle.save()
 
-    def close(self):
+    def close(self) -> None:
         self.handle.close()

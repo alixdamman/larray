@@ -1,5 +1,5 @@
 
-def view(obj=None, title='', depth=0):
+def view(obj=None, title='', depth=0) -> None:
     r"""
     Opens a new viewer window. Arrays are loaded in readonly mode and their content cannot be modified.
 
@@ -32,7 +32,7 @@ def view(obj=None, title='', depth=0):
         raise Exception('view() is not available because the larray_editor package is not installed')
 
 
-def edit(obj=None, title='', minvalue=None, maxvalue=None, readonly=False, depth=0):
+def edit(obj=None, title='', minvalue=None, maxvalue=None, readonly=False, depth=0) -> None:
     r"""
     Opens a new editor window.
 
@@ -73,7 +73,7 @@ def edit(obj=None, title='', minvalue=None, maxvalue=None, readonly=False, depth
         raise Exception('edit() is not available because the larray_editor package is not installed')
 
 
-def debug(depth=0):
+def debug(depth=0) -> None:
     r"""
     Opens a new debug window.
 
@@ -90,7 +90,7 @@ def debug(depth=0):
         raise Exception('debug() is not available because the larray_editor package is not installed')
 
 
-def compare(*args, **kwargs):
+def compare(*args, **kwargs) -> None:
     r"""
     Opens a new comparator window, comparing arrays or sessions.
 
@@ -140,7 +140,7 @@ def compare(*args, **kwargs):
         raise Exception('compare() is not available because the larray_editor package is not installed')
 
 
-def run_editor_on_exception(root_path=None, usercode_traceback=True, usercode_frame=True):
+def run_editor_on_exception(root_path=None, usercode_traceback=True, usercode_frame=True) -> None:
     r"""
     Runs the editor when an unhandled exception (a fatal error) happens.
 

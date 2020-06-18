@@ -1,3 +1,7 @@
+from larray.inout.common import FileHandler
+
+from typing import Type
+
 
 handler_classes = {}
 ext_default_engine = {}
@@ -28,7 +32,7 @@ def register_file_handler(engine, extensions=None):
     return decorate_class
 
 
-def get_file_handler(engine):
+def get_file_handler(engine) -> Type[FileHandler]:
     if engine not in handler_classes:
         raise TypeError("Engine {} is currently not implemented".format(engine))
     file_handler_cls = handler_classes[engine]

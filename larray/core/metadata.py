@@ -1,23 +1,27 @@
 from collections import OrderedDict
 
+from typing import Any, Union, List
+
+from larray.core.abstractbases import ABCArray
+
 
 class AttributeDict(OrderedDict):
-    def __getattr__(self, key):
+    def __getattr__(self, key) -> Any:
         try:
             return self[key]
         except KeyError:
             raise AttributeError(key)
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key, value) -> None:
         self[key] = value
 
-    def __delattr__(self, key):
+    def __delattr__(self, key) -> None:
         del self[key]
 
-    def __dir__(self):
+    def __dir__(self) -> List[str]:
         return list(set(super(AttributeDict, self).__dir__()) | set(self.keys()))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '\n'.join(['{}: {}'.format(k, v) for k, v in self.items()])
 
 
@@ -52,12 +56,12 @@ class Metadata(AttributeDict):
 
     >>> del arr.meta.creation_date
     """
-    def __larray__(self):
+    def __larray__(self) -> ABCArray:
         from larray.core.array import stack
         return stack(self.items(), axes='metadata')
 
     @classmethod
-    def from_array(cls, array):
+    def from_array(cls, array) -> 'Metadata':
         from larray.core.array import asarray
         array = asarray(array)
         if array.ndim != 1:
@@ -74,13 +78,13 @@ class Metadata(AttributeDict):
         return Metadata([(key, _convert_value(value)) for key, value in zip(array.axes.labels[0], array.data)])
 
     # ---------- IO methods ----------
-    def to_hdf(self, hdfstore, key=None):
+    def to_hdf(self, hdfstore, key=None) -> None:
         if len(self):
             attrs = hdfstore.get_storer(key).attrs if key is not None else hdfstore.root._v_attrs
             attrs.metadata = self
 
     @classmethod
-    def from_hdf(cls, hdfstore, key=None):
+    def from_hdf(cls, hdfstore, key=None) -> Union[None, 'Metadata']:
         attrs = hdfstore.get_storer(key).attrs if key is not None else hdfstore.root._v_attrs
         if 'metadata' in attrs:
             return attrs.metadata

@@ -1,12 +1,15 @@
+from typing import Dict, Callable, Any
+from typing_extensions import Final
+
 from larray.util.misc import _positive_integer
 
-DISPLAY_PRECISION = 'display_precision'
-DISPLAY_WIDTH = 'display_width'
-DISPLAY_MAXLINES = 'display_maxlines'
-DISPLAY_EDGEITEMS = 'display_edgeitems'
+DISPLAY_PRECISION: Final[str] = 'display_precision'
+DISPLAY_WIDTH: Final[str] = 'display_width'
+DISPLAY_MAXLINES: Final[str] = 'display_maxlines'
+DISPLAY_EDGEITEMS: Final[str] = 'display_edgeitems'
 
 
-_OPTIONS = {
+_OPTIONS: Final[Dict[str, Any]] = {
     DISPLAY_PRECISION: None,
     DISPLAY_WIDTH: 80,
     DISPLAY_MAXLINES: 200,
@@ -14,19 +17,19 @@ _OPTIONS = {
 }
 
 
-def _integer_maxlines(value):
+def _integer_maxlines(value) -> None:
     if not isinstance(value, int) and value >= -1:
         raise ValueError("Expected integer")
 
 
-def _positive_integer_or_none(value):
+def _positive_integer_or_none(value) -> None:
     if value is None:
         return
     else:
         _positive_integer(value)
 
 
-_VALIDATORS = {
+_VALIDATORS: Final[Dict[str, Callable]] = {
     DISPLAY_PRECISION: _positive_integer_or_none,
     DISPLAY_WIDTH: _positive_integer,
     DISPLAY_MAXLINES: _integer_maxlines,
@@ -88,8 +91,8 @@ class set_options(object):
     ... # doctest: +SKIP
     """
 
-    def __init__(self, **kwargs):
-        self.old = {}
+    def __init__(self, **kwargs) -> None:
+        self.old: Dict[str, Any] = {}
         for k, v in kwargs.items():
             if k not in _OPTIONS:
                 raise ValueError('Argument {} is not in the set of valid options {}'.format(k, set(_OPTIONS)))
@@ -98,14 +101,14 @@ class set_options(object):
             self.old[k] = _OPTIONS[k]
         _OPTIONS.update(kwargs)
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         return
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback) -> None:
         _OPTIONS.update(self.old)
 
 
-def get_options():
+def get_options() -> Dict[str, Any]:
     r"""
     Return the current options.
 

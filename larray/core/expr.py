@@ -3,7 +3,7 @@ import sys
 
 class ExprNode(object):
     # method factory
-    def _binop(opname):
+    def _binop(opname: str):     # type: ignore
         def opmethod(self, other):
             return BinaryOp(opname, self, other)
 
@@ -47,7 +47,7 @@ class ExprNode(object):
     __le__ = _binop('le')
     __lt__ = _binop('lt')
 
-    def _unaryop(opname):
+    def _unaryop(opname: str):       # type: ignore
         def opmethod(self):
             return UnaryOp(opname, self)
 
@@ -70,7 +70,7 @@ def expr_eval(expr, context):
 
 
 class BinaryOp(ExprNode):
-    def __init__(self, op, expr1, expr2):
+    def __init__(self, op, expr1, expr2) -> None:
         self.op = op
         self.expr1 = expr1
         self.expr2 = expr2
@@ -83,7 +83,7 @@ class BinaryOp(ExprNode):
 
 
 class UnaryOp(ExprNode):
-    def __init__(self, op, expr):
+    def __init__(self, op, expr) -> None:
         self.op = op
         self.expr = expr
 

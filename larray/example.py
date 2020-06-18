@@ -1,20 +1,23 @@
 import os
+
+from typing import Dict, List
+
 import larray as la
 
 
-_TEST_DIR = os.path.join(os.path.dirname(__file__), 'tests')
+_TEST_DIR: str = os.path.join(os.path.dirname(__file__), 'tests')
 
-EXAMPLE_FILES_DIR = os.path.join(_TEST_DIR, 'data')
-AVAILABLE_EXAMPLE_DATA = {
+EXAMPLE_FILES_DIR: str = os.path.join(_TEST_DIR, 'data')
+AVAILABLE_EXAMPLE_DATA: Dict[str, str] = {
     'demography': os.path.join(EXAMPLE_FILES_DIR, 'demography.h5'),
     'demography_eurostat': os.path.join(EXAMPLE_FILES_DIR, 'demography_eurostat.h5')
 }
-AVAILABLE_EXAMPLE_FILES = os.listdir(EXAMPLE_FILES_DIR)
+AVAILABLE_EXAMPLE_FILES: List[str] = os.listdir(EXAMPLE_FILES_DIR)
 
-EXAMPLE_EXCEL_TEMPLATES_DIR = os.path.join(_TEST_DIR, 'excel_template')
+EXAMPLE_EXCEL_TEMPLATES_DIR: str = os.path.join(_TEST_DIR, 'excel_template')
 
 
-def get_example_filepath(fname):
+def get_example_filepath(fname) -> str:
     r"""Return absolute path to an example file if exist.
 
     Parameters
@@ -45,7 +48,7 @@ def get_example_filepath(fname):
 # Note that we skip doctests because they require pytables, which is only an optional dependency and its hard
 # to skip doctests selectively.
 # CHECK: We might want to use .csv files for the example data, so that it can be loaded with any optional dependency.
-def load_example_data(name):
+def load_example_data(name) -> la.Session:
     r"""Load arrays used in the tutorial so that all examples in it can be reproduced.
 
     Parameters

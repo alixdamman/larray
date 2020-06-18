@@ -2,6 +2,8 @@ import pickle
 import os.path
 from collections import OrderedDict
 
+from typing import Any, List, Tuple
+
 from larray.core.axis import Axis
 from larray.core.group import Group
 from larray.core.array import Array
@@ -12,17 +14,17 @@ from larray.inout.common import FileHandler, _supported_types, _supported_typena
 
 @register_file_handler('pickle', ['pkl', 'pickle'])
 class PickleHandler(FileHandler):
-    def _open_for_read(self):
+    def _open_for_read(self) -> None:
         with open(self.fname, 'rb') as f:
             self.data = OrderedDict(pickle.load(f))
 
-    def _open_for_write(self):
+    def _open_for_write(self) -> None:
         if not self.overwrite_file and os.path.isfile(self.fname):
             self._open_for_read()
         else:
             self.data = OrderedDict()
 
-    def list_items(self):
+    def list_items(self) -> List[Tuple[str, str]]:
         # scalar
         items = [(key, type(value).__name__) for key, value in self.data.items()
                  if isinstance(value, _supported_scalars_types)]
@@ -34,30 +36,30 @@ class PickleHandler(FileHandler):
         items += [(key, 'Array') for key, value in self.data.items() if isinstance(value, Array)]
         return items
 
-    def _read_item(self, key, typename, *args, **kwargs):
+    def _read_item(self, key, typename, *args, **kwargs) -> Any:
         if typename in _supported_typenames:
             return self.data[key]
         else:
             raise TypeError()
 
-    def _dump_item(self, key, value, *args, **kwargs):
+    def _dump_item(self, key, value, *args, **kwargs) -> None:
         if isinstance(value, _supported_types):
             self.data[key] = value
         else:
             raise TypeError()
 
-    def _read_metadata(self):
+    def _read_metadata(self) -> Metadata:
         if '__metadata__' in self.data:
             return self.data['__metadata__']
         else:
             return Metadata()
 
-    def _dump_metadata(self, metadata):
+    def _dump_metadata(self, metadata) -> None:
         self.data['__metadata__'] = metadata
 
-    def save(self):
+    def save(self) -> None:
         with open(self.fname, 'wb') as f:
             pickle.dump(self.data, f)
 
-    def close(self):
+    def close(self) -> None:
         pass

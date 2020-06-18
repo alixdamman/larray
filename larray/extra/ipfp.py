@@ -5,13 +5,13 @@ from larray.core.array import Array, asarray, ones, any
 import numpy as np
 
 
-def badvalues(a, bad_filter):
+def badvalues(a, bad_filter) -> str:
     bad_values = a[bad_filter]
     assert bad_values.ndim == 1
     return '\n'.join('{}: {}'.format(k, v) for k, v in zip(bad_values.axes[0], bad_values))
 
 
-def f2str(f, threshold=2):
+def f2str(f, threshold=2) -> str:
     r"""Return string representation of floating point number f.
     Use scientific notation if f would have more than threshold decimal digits, otherwise use threshold as precision.
 
@@ -36,7 +36,7 @@ def f2str(f, threshold=2):
     return "{:.{}{}}".format(f, threshold, kind)
 
 
-def warn_or_raise(what, msg):
+def warn_or_raise(what, msg) -> None:
     if what == 'raise':
         raise ValueError(msg)
     else:
@@ -44,7 +44,7 @@ def warn_or_raise(what, msg):
 
 
 def ipfp(target_sums, a=None, axes=None, maxiter=1000, threshold=0.5, stepstoabort=10, nzvzs='raise',
-         no_convergence='raise', display_progress=False):
+         no_convergence='raise', display_progress=False) -> Array:
     r"""Apply Iterative Proportional Fitting Procedure (also known as bi-proportional fitting in statistics,
     RAS algorithm in economics) to array a, with target_sums as targets.
 

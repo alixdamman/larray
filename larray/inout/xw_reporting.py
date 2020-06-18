@@ -2,6 +2,9 @@ import os
 import warnings
 from collections import OrderedDict
 
+from typing import List, Dict, Union, Optional
+
+from larray.core.array import Array
 from larray.util.misc import _positive_integer, _validate_dir
 from larray.core.group import _translate_sheet_name
 from larray.core.array import asarray, zip_array_items
@@ -16,7 +19,7 @@ except ImportError:
 _default_items_size = {}
 
 
-def _validate_template_filename(filename):
+def _validate_template_filename(filename) -> str:
     filename, ext = os.path.splitext(filename)
     if not ext:
         ext = '.crtx'
@@ -27,21 +30,21 @@ def _validate_template_filename(filename):
 
 
 class AbstractReportItem(object):
-    def __init__(self, template_dir=None, template=None, graphs_per_row=1):
-        self.template_dir = template_dir
-        self.template = template
-        self.default_items_size = _default_items_size.copy()
-        self.graphs_per_row = graphs_per_row
+    def __init__(self, template_dir=None, template=None, graphs_per_row=1) -> None:
+        self.template_dir: str = template_dir
+        self.template: str = template
+        self.default_items_size: Dict[str, ItemSize] = _default_items_size.copy()
+        self.graphs_per_row: int = graphs_per_row
 
     @property
-    def template_dir(self):
+    def template_dir(self) -> str:
         r"""
         Set the path to the directory containing the Excel template files (with '.crtx' extension).
         This method is mainly useful if your template files are located in several directories,
         otherwise pass the template directory directly the ExcelReport constructor.
 
-        Parameters
-        ----------
+        Returns
+        -------
         template_dir : str
             Path to the directory containing the Excel template files.
 
@@ -59,19 +62,19 @@ class AbstractReportItem(object):
         return self._template_dir
 
     @template_dir.setter
-    def template_dir(self, template_dir):
+    def template_dir(self, template_dir) -> None:
         if template_dir is not None:
             _validate_dir(template_dir)
             template_dir = template_dir
         self._template_dir = template_dir
 
     @property
-    def template(self):
+    def template(self) -> str:
         r"""
         Set a default Excel template file.
 
-        Parameters
-        ----------
+        Returns
+        -------
         template_file : str
             Name of the template to be used as default template.
             The extension '.crtx' will be added if not given.
@@ -100,7 +103,7 @@ class AbstractReportItem(object):
         return self._template
 
     @template.setter
-    def template(self, template):
+    def template(self, template) -> None:
         if template is not None:
             if self.template_dir is None:
                 raise RuntimeError("Please set template_dir first")
@@ -108,7 +111,7 @@ class AbstractReportItem(object):
             template = os.path.join(self.template_dir, filename)
         self._template = template
 
-    def set_item_default_size(self, kind, width=None, height=None):
+    def set_item_default_size(self, kind, width=None, height=None) -> None:
         r"""
         Override the default 'width' and 'height' values for the given kind of item.
         A new value must be provided at least for 'width' or 'height'.
@@ -141,13 +144,14 @@ class AbstractReportItem(object):
         self.default_items_size[kind] = ItemSize(width, height)
 
     @property
-    def graphs_per_row(self):
+    def graphs_per_row(self) -> int:
         r"""
         Default number of graphs per row.
 
-        Parameters
-        ----------
+        Returns
+        -------
         graphs_per_row: int
+            Number of graphs per row.
 
         See Also
         --------
@@ -156,7 +160,7 @@ class AbstractReportItem(object):
         return self._graphs_per_row
 
     @graphs_per_row.setter
-    def graphs_per_row(self, graphs_per_row):
+    def graphs_per_row(self, graphs_per_row) -> None:
         _positive_integer(graphs_per_row)
         self._graphs_per_row = graphs_per_row
 
@@ -184,7 +188,7 @@ class AbstractReportSheet(AbstractReportItem):
     --------
     ExcelReport
     """
-    def add_title(self, title, width=None, height=None, fontsize=11):
+    def add_title(self, title, width=None, height=None, fontsize=11) -> None:
         r"""
         Add a title item to the current sheet.
         Note that the current method only add a new item to the list of items to be generated.
@@ -217,7 +221,7 @@ class AbstractReportSheet(AbstractReportItem):
         """
         pass
 
-    def add_graph(self, data, title=None, template=None, width=None, height=None):
+    def add_graph(self, data, title=None, template=None, width=None, height=None) -> None:
         r"""
         Add a graph item to the current sheet.
         Note that the current method only add a new item to the list of items to be generated.
@@ -271,7 +275,7 @@ class AbstractReportSheet(AbstractReportItem):
         pass
 
     def add_graphs(self, array_per_title, axis_per_loop_variable, template=None, width=None, height=None,
-                    graphs_per_row=1):
+                   graphs_per_row=1) -> None:
         r"""
         Add multiple graph items to the current sheet. This method is mainly useful when multiple
         graphs are generated by iterating over one or several axes of an array (see examples below).
@@ -317,7 +321,7 @@ class AbstractReportSheet(AbstractReportItem):
         """
         pass
 
-    def newline(self):
+    def newline(self) -> None:
         r"""
         Force a new row of graphs.
         """
@@ -402,6 +406,7 @@ class AbstractExcelReport(AbstractReportItem):
 
     Add multiple graphs at once (add a new graph for each combination of gender and year)
 
+    >>> population = demo.population
     >>> sheet_countries.add_graphs({'Population of {gender} by country for the year {year}': population},
     ...                            {'gender': population.gender, 'year': population.time},
     ...                            template='line', width=450, height=250, graphs_per_row=2)
@@ -411,7 +416,7 @@ class AbstractExcelReport(AbstractReportItem):
     >>> report.to_excel('Demography_Report.xlsx')
     """
 
-    def new_sheet(self, sheet_name):
+    def new_sheet(self, sheet_name) -> 'SheetReport':           # type: ignore[name-defined]
         r"""
         Add a new empty output sheet.
         This sheet will contain only graphical elements, all data are exported
@@ -439,7 +444,7 @@ class AbstractExcelReport(AbstractReportItem):
         """
         pass
 
-    def sheet_names(self):
+    def sheet_names(self) -> List[str]:
         r"""
         Returns the names of the output sheets.
 
@@ -454,7 +459,7 @@ class AbstractExcelReport(AbstractReportItem):
         """
         pass
 
-    def to_excel(self, filepath, data_sheet_name='__data__', overwrite=True):
+    def to_excel(self, filepath, data_sheet_name='__data__', overwrite=True) -> None:
         r"""
         Generate the report Excel file.
 
@@ -504,42 +509,41 @@ if xw is not None:
     from larray.inout.xw_excel import open_excel
 
     class ItemSize(object):
-        def __init__(self, width, height):
-            self.width = width
-            self.height = height
+        def __init__(self, width, height) -> None:
+            self.width: int = width
+            self.height: int = height
 
         @property
-        def width(self):
+        def width(self) -> int:
             return self._width
 
         @width.setter
-        def width(self, width):
+        def width(self, width) -> None:
             _positive_integer(width)
             self._width = width
 
         @property
-        def height(self):
+        def height(self) -> int:
             return self._height
 
         @height.setter
-        def height(self, height):
+        def height(self, height) -> None:
             _positive_integer(height)
             self._height = height
-
 
     class ExcelTitleItem(ItemSize):
 
         _default_size = ItemSize(1000, 50)
 
-        def __init__(self, text, fontsize, top, left, width, height):
+        def __init__(self, text, fontsize, top, left, width, height) -> None:
             ItemSize.__init__(self, width, height)
-            self.top = top
-            self.left = left
-            self.text = str(text)
+            self.top: int = top
+            self.left: int = left
+            self.text: str = str(text)
             _positive_integer(fontsize)
-            self.fontsize = fontsize
+            self.fontsize: int = fontsize
 
-        def dump(self, sheet, data_sheet, row):
+        def dump(self, sheet, data_sheet, row) -> int:
             data_cells = data_sheet.Cells
             # add title in data sheet
             data_cells(row, 1).Value = self.text
@@ -572,21 +576,21 @@ if xw is not None:
 
         _default_size = ItemSize(427, 230)
 
-        def __init__(self, data, title, template, top, left, width, height):
+        def __init__(self, data, title, template, top, left, width, height) -> None:
             ItemSize.__init__(self, width, height)
-            self.top = top
-            self.left = left
-            self.title = str(title) if title is not None else None
+            self.top: int = top
+            self.left: int = left
+            self.title: Optional[str] = str(title) if title is not None else None
             data = asarray(data)
             if not (1 <= data.ndim <= 2):
                 raise ValueError("Expected 1D or 2D array for data argument. "
                                  "Got array of dimensions {}".format(data.ndim))
-            self.data = data
+            self.data: Array = data
             if template is not None and not os.path.isfile(template):
                 raise ValueError("Could not find template file {}".format(template))
-            self.template = template
+            self.template: str = template
 
-        def dump(self, sheet, data_sheet, row):
+        def dump(self, sheet, data_sheet, row) -> int:
             data_range = data_sheet.Range
             data_cells = data_sheet.Cells
             # write graph title in data sheet
@@ -621,22 +625,22 @@ if xw is not None:
     _default_items_size['graph'] = ExcelGraphItem._default_size
 
     class ReportSheet(AbstractReportSheet):
-        def __init__(self, excel_report, name, template_dir=None, template=None, graphs_per_row=1):
+        def __init__(self, excel_report, name, template_dir=None, template=None, graphs_per_row=1) -> None:
             name = _translate_sheet_name(name)
-            self.excel_report = excel_report
-            self.name = name
-            self.items = []
-            self.top = 0
-            self.left = 0
-            self.position_in_row = 1
-            self.curline_height = 0
+            self.excel_report: ExcelReport = excel_report
+            self.name: str = name
+            self.items: List[Union[ExcelTitleItem, ExcelGraphItem]] = []
+            self.top: int = 0
+            self.left: int = 0
+            self.position_in_row: int = 1
+            self.curline_height: int = 0
             if template_dir is None:
                 template_dir = excel_report.template_dir
             if template is None:
                 template = excel_report.template
             AbstractReportSheet.__init__(self, template_dir, template, graphs_per_row)
 
-        def add_title(self, title, width=None, height=None, fontsize=11):
+        def add_title(self, title, width=None, height=None, fontsize=11) -> None:
             if width is None:
                 width = self.default_items_size['title'].width
             if height is None:
@@ -645,7 +649,7 @@ if xw is not None:
             self.items.append(ExcelTitleItem(title, fontsize, self.top, 0, width, height))
             self.top += height
 
-        def add_graph(self, data, title=None, template=None, width=None, height=None):
+        def add_graph(self, data, title=None, template=None, width=None, height=None) -> None:
             if width is None:
                 width = self.default_items_size['graph'].width
             if height is None:
@@ -661,7 +665,7 @@ if xw is not None:
             self.position_in_row += 1
 
         def add_graphs(self, array_per_title, axis_per_loop_variable, template=None, width=None, height=None,
-                       graphs_per_row=1):
+                       graphs_per_row=1) -> None:
             loop_variable_names = axis_per_loop_variable.keys()
             axes = tuple(axis_per_loop_variable.values())
             titles = array_per_title.keys()
@@ -679,13 +683,13 @@ if xw is not None:
             if graphs_per_row is not None:
                 self.graphs_per_row = previous_graphs_per_row
 
-        def newline(self):
+        def newline(self) -> None:
             self.top += self.curline_height
             self.curline_height = 0
             self.left = 0
             self.position_in_row = 1
 
-        def _to_excel(self, workbook, data_row):
+        def _to_excel(self, workbook, data_row) -> int:
             # use first sheet as data sheet
             data_sheet = workbook.Worksheets(1)
             data_cells = data_sheet.Cells
@@ -709,18 +713,20 @@ if xw is not None:
 
     # TODO : add a new section about this class in the tutorial
     class ExcelReport(AbstractExcelReport):
-        def __init__(self, template_dir=None, template=None, graphs_per_row=1):
+        sheets: Dict[str, ReportSheet]
+
+        def __init__(self, template_dir=None, template=None, graphs_per_row=1) -> None:
             AbstractExcelReport.__init__(self, template_dir, template, graphs_per_row)
             self.sheets = OrderedDict()
 
-        def sheet_names(self):
+        def sheet_names(self) -> List[str]:
             return [sheet_name for sheet_name in self.sheets.keys()]
 
-        def __getitem__(self, key):
+        def __getitem__(self, key) -> ReportSheet:
             return self.sheets[key]
 
         # TODO : Do not implement __setitem__ and move code below to new_sheet()?
-        def __setitem__(self, key, value):
+        def __setitem__(self, key, value) -> None:
             if not isinstance(value, ReportSheet):
                 raise ValueError('Expected SheetReport object. '
                                  'Got {} object instead.'.format(type(value).__name__))
@@ -728,18 +734,18 @@ if xw is not None:
                 warnings.warn("Sheet '{}' already exists in the report and will be reset".format(key))
             self.sheets[key] = value
 
-        def __delitem__(self, key):
+        def __delitem__(self, key) -> None:
             del self.sheets[key]
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             return 'sheets: {}'.format(self.sheet_names())
 
-        def new_sheet(self, sheet_name):
+        def new_sheet(self, sheet_name) -> ReportSheet:
             sheet = ReportSheet(self, sheet_name, self.template_dir, self.template, self.graphs_per_row)
             self[sheet_name] = sheet
             return sheet
 
-        def to_excel(self, filepath, data_sheet_name='__data__', overwrite=True):
+        def to_excel(self, filepath, data_sheet_name='__data__', overwrite=True) -> None:
             with open_excel(filepath, overwrite_file=overwrite) as wb:
                 # from here on, we use pure win32com objects instead of
                 # larray.excel or xlwings objects as this is faster
@@ -756,12 +762,12 @@ if xw is not None:
                 # reset
                 self.sheets.clear()
 else:
-    class ReportSheet(AbstractReportSheet):
-        def __init__(self):
+    class ReportSheet(AbstractReportSheet):             # type: ignore[no-redef]
+        def __init__(self) -> None:
             raise Exception("SheetReport class cannot be instantiated because xlwings is not installed")
 
-    class ExcelReport(AbstractExcelReport):
-        def __init__(self):
+    class ExcelReport(AbstractExcelReport):             # type: ignore[no-redef]
+        def __init__(self) -> None:
             raise Exception("ExcelReport class cannot be instantiated because xlwings is not installed")
 
 

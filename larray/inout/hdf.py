@@ -1,5 +1,7 @@
 import warnings
 
+from typing import List, Tuple, Union
+
 import numpy as np
 import pandas as pd
 from pandas import HDFStore
@@ -10,20 +12,24 @@ from larray.core.constants import nan
 from larray.core.group import Group, LGroup, _translate_group_key_hdf
 from larray.core.metadata import Metadata
 from larray.util.misc import LHDFStore
+from larray.util.types import Scalar
 from larray.inout.session import register_file_handler
 from larray.inout.common import FileHandler, _supported_typenames, _supported_scalars_types
 from larray.inout.pandas import df_asarray
 from larray.example import get_example_filepath
 
 
+HDFType = Union[Scalar, Axis, Group, Array]
+
+
 # for backward compatibility (larray < 0.29) but any object read from an hdf file should have
 # an attribute 'type'
-def _get_type_from_attrs(attrs):
+def _get_type_from_attrs(attrs) -> str:
     return attrs.type if 'type' in attrs else 'Array'
 
 
 def read_hdf(filepath_or_buffer, key, fill_value=nan, na=nan, sort_rows=False, sort_columns=False,
-             name=None, **kwargs):
+             name=None, **kwargs) -> HDFType:
     r"""Reads a scalar or an axis or group or array named key from a HDF5 file in filepath (path+name)
 
     Parameters
@@ -49,7 +55,7 @@ def read_hdf(filepath_or_buffer, key, fill_value=nan, na=nan, sort_rows=False, s
 
     Returns
     -------
-    Array
+    Array or Axis or Group or Scalar
 
     Examples
     --------
@@ -73,7 +79,7 @@ def read_hdf(filepath_or_buffer, key, fill_value=nan, na=nan, sort_rows=False, s
                       FutureWarning, stacklevel=2)
 
     key = _translate_group_key_hdf(key)
-    res = None
+    res: HDFType = None
     with LHDFStore(filepath_or_buffer) as store:
         try:
             pd_obj = store.get(key)
@@ -119,9 +125,9 @@ def read_hdf(filepath_or_buffer, key, fill_value=nan, na=nan, sort_rows=False, s
             axis = read_hdf(filepath_or_buffer, attrs['axis_key'])
             res = LGroup(key=key, name=name, axis=axis)
         elif _type in _supported_typenames:
-            res = pd_obj.values
-            assert len(res) == 1
-            res = res[0]
+            values = pd_obj.values
+            assert len(values) == 1
+            res = values[0]
     return res
 
 
@@ -130,13 +136,13 @@ class PandasHDFHandler(FileHandler):
     r"""
     Handler for HDF5 files using Pandas.
     """
-    def _open_for_read(self):
+    def _open_for_read(self) -> None:
         self.handle = HDFStore(self.fname, mode='r')
 
-    def _open_for_write(self):
+    def _open_for_write(self) -> None:
         self.handle = HDFStore(self.fname)
 
-    def list_items(self):
+    def list_items(self) -> List[Tuple[str, str]]:
         keys = [key.strip('/') for key in self.handle.keys()]
         items = [(key, _get_type_from_attrs(self.handle.get_storer(key).attrs)) for key in keys if '/' not in key]
         # ---- for backward compatibility (LArray < 0.33) ----
@@ -146,7 +152,7 @@ class PandasHDFHandler(FileHandler):
         items += [(key.split('/')[-1], 'Group_Backward_Comp') for key in keys if '__groups__' in key]
         return items
 
-    def _read_item(self, key, typename, *args, **kwargs):
+    def _read_item(self, key, typename, *args, **kwargs) -> HDFType:        # type: ignore
         if typename in _supported_typenames:
             hdf_key = '/' + key
         # ---- for backward compatibility (LArray < 0.33) ----
@@ -158,13 +164,13 @@ class PandasHDFHandler(FileHandler):
             raise TypeError()
         return read_hdf(self.handle, hdf_key, *args, **kwargs)
 
-    def _dump_item(self, key, value, *args, **kwargs):
+    def _dump_item(self, key, value, *args, **kwargs) -> None:
         hdf_key = '/' + key
         if isinstance(value, (Array, Axis)):
-            value.to_hdf(self.handle, hdf_key, *args, **kwargs)
+            value.to_hdf(self.handle, hdf_key)
         elif isinstance(value, Group):
-            hdf_axis_key = '/' + value.axis.name
-            value.to_hdf(self.handle, hdf_key, hdf_axis_key, *args, **kwargs)
+            hdf_axis_key = '/' + value.axis.name                        # type: ignore
+            value.to_hdf(self.handle, hdf_key, hdf_axis_key)
         elif isinstance(value, _supported_scalars_types):
             s = pd.Series(data=value)
             self.handle.put(hdf_key, s)
@@ -172,14 +178,14 @@ class PandasHDFHandler(FileHandler):
         else:
             raise TypeError()
 
-    def _read_metadata(self):
+    def _read_metadata(self) -> Metadata:
         metadata = Metadata.from_hdf(self.handle)
         if metadata is None:
             metadata = Metadata()
         return metadata
 
-    def _dump_metadata(self, metadata):
+    def _dump_metadata(self, metadata) -> None:
         metadata.to_hdf(self.handle)
 
-    def close(self):
+    def close(self) -> None:
         self.handle.close()

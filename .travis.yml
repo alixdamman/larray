@@ -38,6 +38,7 @@ install:
     - conda create -n travisci --yes python=${TRAVIS_PYTHON_VERSION:0:3}
             "numpy>=1.13" "pandas>=0.20" pytables matplotlib xlrd openpyxl
             xlsxwriter "pytest>=3.5" pytest-pep8
+    - pip install pytest-mypy
     - source activate travisci
 
 script:

@@ -14,6 +14,9 @@ from functools import reduce, wraps
 from itertools import product
 from collections import defaultdict
 
+from typing import Union, List, Tuple, Set, Dict, Iterable, Sequence, Iterator, Optional, Callable, Any, DefaultDict
+from larray.util.types import T, T_co
+
 import numpy as np
 import pandas as pd
 
@@ -23,21 +26,22 @@ except TypeError:
     pass
 
 
-def is_interactive_interpreter():
+def is_interactive_interpreter() -> bool:
     try:
         # When running using IPython, sys.ps1 is always defined, so we cannot use the standard "hasattr(sys, 'ps1')"
         # Additionally, an InProcessInteractiveShell can have a __main__ module with a file
         main_lacks_file = not hasattr(__main__, '__file__')
-        return main_lacks_file or get_ipython().__class__.__name__ == 'InProcessInteractiveShell'
+        ipython_class_name = get_ipython().__class__.__name__                           # type: ignore[name-defined]
+        return main_lacks_file or ipython_class_name == 'InProcessInteractiveShell'
     except NameError:
         return hasattr(sys, 'ps1')
 
 
-def prod(values):
+def prod(values) -> Any:
     return reduce(operator.mul, values, 1)
 
 
-def format_value(value, missing, precision=None):
+def format_value(value: Any, missing: str, precision: int=None) -> str:
     if isinstance(value, float):
         # nans print as "-1.#J", let's use something nicer
         if value != value:
@@ -53,11 +57,11 @@ def format_value(value, missing, precision=None):
         return str(value)
 
 
-def get_col_width(table, index):
+def get_col_width(table, index) -> int:
     return max(len(row[index]) for row in table)
 
 
-def longest_word(s):
+def longest_word(s) -> int:
     """Return length of the longest word in the given string
 
     Parameters
@@ -85,12 +89,12 @@ def longest_word(s):
     return max(len(w) for w in s.split()) if s and not s.isspace() else 0
 
 
-def get_min_width(table, index):
+def get_min_width(table, index) -> int:
     return max(longest_word(row[index]) for row in table)
 
 
 def table2str(table, missing, summarize=True, maxwidth=200, numedges='auto', sep='  ', cont='...',
-              keepcols=0, precision=None):
+              keepcols=0, precision=None) -> str:
     """
     table is a list of lists
     :type table: list of list
@@ -149,7 +153,7 @@ def table2str(table, missing, summarize=True, maxwidth=200, numedges='auto', sep
         wrapped_row = [wrap(value, width) if width > 0 else value
                        for value, width in zip(row, colwidths)]
         maxlines = max(len(value) for value in wrapped_row)
-        newlines = [[] for _ in range(maxlines)]
+        newlines: List[List[str]] = [[] for _ in range(maxlines)]
         for value, width in zip(wrapped_row, colwidths):
             for i in range(maxlines):
                 chunk = value[i] if i < len(value) else ''
@@ -159,13 +163,13 @@ def table2str(table, missing, summarize=True, maxwidth=200, numedges='auto', sep
 
 
 # copied from itertools recipes
-def unique(iterable):
+def unique(iterable: Iterable[T]) -> Iterator[T]:
     """
     Yields all elements once, preserving order. Remember all elements ever seen.
     >>> list(unique('AAAABBBCCDAABBB'))
     ['A', 'B', 'C', 'D']
     """
-    seen = set()
+    seen: Set[T] = set()
     seen_add = seen.add
     for element in iterable:
         if element not in seen:
@@ -173,7 +177,7 @@ def unique(iterable):
             yield element
 
 
-def unique_list(iterable, res=None, seen=None):
+def unique_list(iterable: Iterable[T], res: Optional[List[T]]=None, seen: Optional[Set[T]]=None) -> List[T]:
     """
     Returns a list of all unique elements, preserving order. Remember all elements ever seen.
     >>> unique_list('AAAABBBCCDAABBB')
@@ -192,34 +196,34 @@ def unique_list(iterable, res=None, seen=None):
     return res
 
 
-def unique_multi(iterable_of_iterables):
+def unique_multi(iterable_of_iterables: Iterable[Iterable[T]]) -> List[T]:
     """
     Returns a list of all unique elements across multiple iterables. Elements of earlier iterables will come first.
     """
-    seen = set()
-    res = []
+    seen: Set[T] = set()
+    res: List[T] = []
     for iterable in iterable_of_iterables:
         unique_list(iterable, res, seen)
     return res
 
 
-def duplicates(iterable):
+def duplicates(iterable: Iterable[T]) -> Iterator[T]:
     """
     List duplicated elements once, preserving order. Remember all elements ever seen.
     """
     # duplicates('AAAABBBCCDAABBB') --> A B C
-    counts = defaultdict(int)
+    counts: DefaultDict[T, int] = defaultdict(int)
     for element in iterable:
         counts[element] += 1
         if counts[element] == 2:
             yield element
 
 
-def rproduct(*i):
+def rproduct(*i: Sequence[T]) -> Iterator[Tuple[T, ...]]:
     return product(*[x[::-1] for x in i])
 
 
-def light_product(*iterables, **kwargs):
+def light_product(*iterables: Iterable[T], **kwargs: Dict[str, Any]) -> Iterator[Tuple[T, ...]]:
     """Cartesian product of input iterables, replacing repeated values by empty strings.
 
     Parameters
@@ -240,7 +244,7 @@ def light_product(*iterables, **kwargs):
     >>> list(light_product('ab', repeat=2))
     [('a', 'a'), ('', 'b'), ('b', 'a'), ('', 'b')]
     """
-    repeat = kwargs.pop('repeat', 1)
+    repeat: int = kwargs.pop('repeat', 1)           # type: ignore[assignment]
     p = product(*iterables, repeat=repeat)
     prev_t = (None,) * len(iterables) * repeat
     for t in p:
@@ -249,23 +253,23 @@ def light_product(*iterables, **kwargs):
         prev_t = t
 
 
-def array_nan_equal(a, b):
+def array_nan_equal(a, b) -> bool:
     if np.issubdtype(a.dtype, np.str) and np.issubdtype(b.dtype, np.str):
         return np.array_equal(a, b)
     else:
         return np.all((a == b) | (np.isnan(a) & np.isnan(b)))
 
 
-def unzip(iterable):
+def unzip(iterable: Iterable[Any]) -> List[Any]:
     return list(zip(*iterable))
 
 
 class ReprString(str):
-    def __repr__(self):
+    def __repr__(self) -> 'ReprString':
         return self
 
 
-def array_lookup(array, mapping):
+def array_lookup(array: Any, mapping: Dict[Any, Any]) -> np.ndarray:
     """pass all elements of an np.ndarray through a mapping"""
     array = np.asarray(array)
     # TODO: this must be cached in the Axis
@@ -288,7 +292,7 @@ def array_lookup(array, mapping):
     return sorted_values[indices]
 
 
-def array_lookup2(array, sorted_keys, sorted_values):
+def array_lookup2(array: Any, sorted_keys: np.ndarray, sorted_values: np.ndarray) -> np.ndarray:
     """pass all elements of an np.ndarray through a "mapping" """
     if not len(array):
         return np.empty(0, dtype=sorted_values.dtype)
@@ -309,7 +313,7 @@ def array_lookup2(array, sorted_keys, sorted_values):
     return sorted_values[indices]
 
 
-def split_on_condition(seq, condition):
+def split_on_condition(seq: Iterable[T], condition: Callable[..., bool]) -> Tuple[List[T], List[T]]:
     """splits an iterable into two lists depending on a condition
 
     Parameters
@@ -326,14 +330,15 @@ def split_on_condition(seq, condition):
     If the condition can be inlined into a list comprehension, a double list comprehension is faster than this function.
     So if performance is crucial, you should inline this function with the condition itself inlined.
     """
-    a, b = [], []
+    a: List[T] = []
+    b: List[T] = []
     append_a, append_b = a.append, b.append
     for e in seq:
         append_a(e) if condition(e) else append_b(e)
     return a, b
 
 
-def split_on_values(seq, values):
+def split_on_values(seq: Iterable[T], values: Iterable[T]) -> Tuple[List[T], List[T]]:
     """splits an iterable into two lists depending on a list of values
 
     Parameters
@@ -347,14 +352,15 @@ def split_on_values(seq, values):
     a, b: list
     """
     values = set(values)
-    a, b = [], []
+    a: List[T] = []
+    b: List[T] = []
     append_a, append_b = a.append, b.append
     for e in seq:
         append_a(e) if e in values else append_b(e)
     return a, b
 
 
-def skip_comment_cells(lines):
+def skip_comment_cells(lines) -> Iterator[List[str]]:
     def notacomment(v):
         return not v.startswith('#')
     for line in lines:
@@ -363,7 +369,7 @@ def skip_comment_cells(lines):
             yield stripped_line
 
 
-def strip_rows(lines):
+def strip_rows(lines) -> Iterator[List[str]]:
     """
     returns an iterator of lines with trailing blank (empty or
     which contain only space) cells.
@@ -375,7 +381,7 @@ def strip_rows(lines):
         yield list(reversed(rev_line))
 
 
-def size2str(value):
+def size2str(value: int) -> str:
     """
     >>> size2str(0)
     '0 bytes'
@@ -398,7 +404,7 @@ def size2str(value):
     return fmt % (value / 1024.0 ** scale, units[scale])
 
 
-def find_closing_chr(s, start=0):
+def find_closing_chr(s: str, start: int=0) -> int:
     """
 
     Parameters
@@ -475,8 +481,8 @@ def find_closing_chr(s, start=0):
                      .format(match[needle]))
 
 
-def float_error_handler_factory(stacklevel):
-    def error_handler(error, flag):
+def float_error_handler_factory(stacklevel: int) -> Callable[..., None]:
+    def error_handler(error: str, flag) -> None:
         if error == 'invalid value':
             error = 'invalid value (NaN)'
             extra = ' (this is typically caused by a 0 / 0)'
@@ -486,7 +492,7 @@ def float_error_handler_factory(stacklevel):
     return error_handler
 
 
-def _isintstring(s):
+def _isintstring(s: str) -> bool:
     """
     Return True if the passed string represents an integer.
     Zero padded integers are considered as strings and not integers.
@@ -513,20 +519,22 @@ def _isintstring(s):
     return isposint(s) or (len(s) > 1 and s[0] == '-' and isposint(s[1:]))
 
 
-def _parse_bound(s, stack_depth=1, parse_int=True):
+def _parse_bound(s: str, stack_depth: int=1, parse_int: bool=True) -> Any:
     """Parse a string representing a single value, converting int-like strings to integers and evaluating expressions
     within {}.
 
     Parameters
     ----------
-    s : str
+    s: str
         string to evaluate
-    stack_depth : int
-        how deep to go in the stack to get local variables for evaluating {expressions}.
+    stack_depth: int, optional
+        how deep to go in the stack to get local variables for evaluating {expressions}. Defaults to 1.
+    parse_int: bool, optional
+        convert to an integer if possible. Defaults to True.
 
     Returns
     -------
-    any
+    Any
 
     Examples
     --------
@@ -554,14 +562,14 @@ def _parse_bound(s, stack_depth=1, parse_int=True):
         return s
 
 
-def _isnoneslice(v):
+def _isnoneslice(v: Any) -> bool:
     """
     Checks if input is slice(None) object.
     """
     return isinstance(v, slice) and v.start is None and v.stop is None and v.step is None
 
 
-def _seq_summary(seq, n=3, repr_func=repr, sep=' '):
+def _seq_summary(seq: Sequence[T], n: int=3, repr_func: Callable[..., str]=repr, sep: str=' ') -> str:
     """
     Returns a string representing a sequence by showing only the n first and last elements.
 
@@ -577,7 +585,7 @@ def _seq_summary(seq, n=3, repr_func=repr, sep=' '):
     return sep.join(short_seq)
 
 
-def index_by_id(seq, value):
+def index_by_id(seq: Sequence[T], value: T) -> int:
     """
     Returns position of an object in a sequence.
 
@@ -585,11 +593,16 @@ def index_by_id(seq, value):
 
     Parameters
     ----------
-    seq : sequence
+    seq: sequence
         Any sequence (list, tuple, str, unicode).
 
-    value : object
+    value: object
         Object for which you want to retrieve its position in the sequence.
+
+    Returns
+    -------
+    int
+        position of the passed object in the sequence.
 
     Raises
     ------
@@ -619,8 +632,8 @@ def index_by_id(seq, value):
     raise ValueError("%s is not in list" % value)
 
 
-def renamed_to(newfunc, old_name, stacklevel=2):
-    def wrapper(*args, **kwargs):
+def renamed_to(newfunc: Callable[..., Any], old_name: str, stacklevel: int=2) -> Callable[..., Any]:
+    def wrapper(*args: List[Any], **kwargs: Dict[str, Any]) -> Callable[..., Any]:
         msg = "{}() is deprecated. Use {}() instead.".format(old_name, newfunc.__name__)
         warnings.warn(msg, FutureWarning, stacklevel=stacklevel)
         return newfunc(*args, **kwargs)
@@ -628,13 +641,14 @@ def renamed_to(newfunc, old_name, stacklevel=2):
 
 
 # deprecate_kwarg is derived from pandas.util._decorators (0.21)
-def deprecate_kwarg(old_arg_name, new_arg_name, mapping=None, arg_converter=None, stacklevel=2):
+def deprecate_kwarg(old_arg_name: str, new_arg_name: str, mapping: Dict=None, arg_converter: Callable[..., Any]=None,
+                    stacklevel: int=2) -> Callable[..., Any]:
     if mapping is not None and not isinstance(mapping, dict):
         raise TypeError("mapping from old to new argument values must be dict!")
 
-    def _deprecate_kwarg(func):
+    def _deprecate_kwarg(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: List[Any], **kwargs: Dict[str, Any]):
             old_arg_value = kwargs.pop(old_arg_name, None)
             if old_arg_value is not None:
                 if mapping is not None:
@@ -664,13 +678,13 @@ class lazy_attribute(object):
     Decorate a method of a class and turn it into an attribute on the instance
     when first called. Should obviously only be used when the result of the method is constant.
     """
-    def __init__(self, func):
-        self.func = func
+    def __init__(self, func) -> None:
+        self.func: Callable[[Any], Any] = func
         self.__doc__ = self.func.__doc__
 
     # descriptor protocol
     # see https://docs.python.org/3/reference/datamodel.html#implementing-descriptors
-    def __get__(self, instance, owner):
+    def __get__(self, instance: Any, owner: Any) -> Any:
         if instance is None:
             return self
 
@@ -679,7 +693,7 @@ class lazy_attribute(object):
         return value
 
 
-def inverseop(opname):
+def inverseop(opname: str) -> str:
     comparison_ops = {
         'lt': 'gt',
         'gt': 'lt',
@@ -694,13 +708,13 @@ def inverseop(opname):
         return 'r' + opname
 
 
-_numeric_kinds = 'buifc'    # Boolean, Unsigned integer, Integer, Float, Complex
-_string_kinds = 'SU'        # String, Unicode
-_meta_kind = {k: 'str' for k in _string_kinds}
+_numeric_kinds: str = 'buifc'    # Boolean, Unsigned integer, Integer, Float, Complex
+_string_kinds: str = 'SU'        # String, Unicode
+_meta_kind: Dict[str, str] = {k: 'str' for k in _string_kinds}
 _meta_kind.update({k: 'numeric' for k in _numeric_kinds})
 
 
-def common_type(arrays):
+def common_type(arrays: Iterable[Any]) -> Union[object, np.dtype]:
     """
     Returns a type which is common to the input arrays.
     All input arrays can be safely cast to the returned dtype without loss of information.
@@ -729,7 +743,7 @@ def common_type(arrays):
 
 class LHDFStore(object):
     """Context manager for pandas HDFStore"""
-    def __init__(self, filepath_or_buffer, **kwargs):
+    def __init__(self, filepath_or_buffer, **kwargs) -> None:
         if isinstance(filepath_or_buffer, pd.HDFStore):
             if not filepath_or_buffer.is_open:
                 raise IOError('The HDFStore must be open for reading.')
@@ -739,15 +753,18 @@ class LHDFStore(object):
             self.store = pd.HDFStore(filepath_or_buffer, **kwargs)
             self.close_store = True
 
-    def __enter__(self):
+    def __enter__(self) -> pd.HDFStore:
         return self.store
 
-    def __exit__(self, type_, value, traceback):
+    def __exit__(self, type_, value, traceback) -> None:
         if self.close_store:
             self.store.close()
 
 
-class SequenceZip(object):
+KeyGetitem = Union[int, np.integer, slice]
+
+
+class SequenceZip(Sequence[Sequence[T_co]]):
     """
     Represents the "combination" of several sequences.
 
@@ -775,7 +792,7 @@ class SequenceZip(object):
     >>> list(z[1:4])
     [('b', 2), ('c', 3)]
     """
-    def __init__(self, sequences):
+    def __init__(self, sequences: Sequence[Sequence[T_co]]) -> None:
         self.sequences = sequences
         length = len(sequences[0])
         bad_length_seqs = [i for i, s in enumerate(sequences[1:], start=1) if len(s) != length]
@@ -783,26 +800,26 @@ class SequenceZip(object):
             first_bad = bad_length_seqs[0]
             raise ValueError("sequence {} has a length of {} which is different from the length of the "
                              "first sequence ({})".format(first_bad, len(sequences[first_bad]), length))
-        self._length = length
+        self._length: int = length
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._length
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: KeyGetitem) -> Union[Tuple[T_co, ...], Iterable[Sequence[T_co]]]:    # type: ignore
         if isinstance(key, (int, np.integer)):
             return tuple(seq[key] for seq in self.sequences)
         else:
             assert isinstance(key, slice), "key (%s) has invalid type (%s)" % (key, type(key))
             return SequenceZip([seq[key] for seq in self.sequences])
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Sequence[T_co]]:
         return zip(*self.sequences)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'SequenceZip({})'.format(self.sequences)
 
 
-class Repeater(object):
+class Repeater(Sequence[T_co]):
     """
     Returns a virtual sequence with value repeated n times.
     The sequence is never actually created in memory.
@@ -849,14 +866,14 @@ class Repeater(object):
     >>> list(r[10:])
     []
     """
-    def __init__(self, value, n):
+    def __init__(self, value: T_co, n: int) -> None:
         self.value = value
         self.n = n
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.n
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: KeyGetitem) -> Union[T_co, Sequence[T_co]]:                          # type: ignore
         if isinstance(key, (int, np.integer)):
             if key >= self.n or key < -self.n:
                 raise IndexError('index out of range')
@@ -867,15 +884,15 @@ class Repeater(object):
             # XXX: unsure // step is correct
             return Repeater(self.value, (stop - start) // step)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T_co]:
         return itertools.repeat(self.value, self.n)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'Repeater({}, {})'.format(self.value, self.n)
 
 
 # TODO: remove Product from larray_editor.utils (it is almost identical)
-class Product(object):
+class Product(Sequence[T_co]):
     """
     Represents the `cartesian product` of several sequences.
 
@@ -905,18 +922,18 @@ class Product(object):
     >>> list(p)
     [('a', 1), ('a', 2), ('b', 1), ('b', 2), ('c', 1), ('c', 2)]
     """
-    def __init__(self, sequences):
+    def __init__(self, sequences: Sequence[Sequence[T_co]]) -> None:
         self.sequences = sequences
         assert len(sequences)
         shape = [len(a) for a in self.sequences]
         self._div_mod = [(int(np.prod(shape[i + 1:])), shape[i])
                          for i in range(len(shape))]
-        self._length = np.prod(shape)
+        self._length: int = np.prod(shape)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._length
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: KeyGetitem) -> Union[Tuple[T_co, ...], List[Tuple[T_co, ...]]]:      # type: ignore
         if isinstance(key, (int, np.integer)):
             if key >= self._length:
                 raise IndexError("index %d out of range for Product of length %d" % (key, self._length))
@@ -934,24 +951,24 @@ class Product(object):
                           for array, (div, mod) in zip(arrays, div_mod))
                     for idx in range(start, stop, step)]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tuple[T_co, ...]]:           # type: ignore
         return product(*self.sequences)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'Product({})'.format(self.sequences)
 
 
 _np_generic = np.generic
 
 
-def _kill_np_type(value):
+def _kill_np_type(value) -> Any:
     return value.item() if isinstance(value, _np_generic) else value
 
 
 _kill_np_types = np.vectorize(_kill_np_type, otypes=[object])
 
 
-def ensure_no_numpy_type(array):
+def ensure_no_numpy_type(array: np.ndarray) -> List[Any]:
     """
     Converts array to a (potentially nested) list of builtin Python values (i.e. using no numpy-specific types)
 
@@ -976,11 +993,11 @@ def ensure_no_numpy_type(array):
 #  validator funcs  #
 # ################# #
 
-def _positive_integer(value):
+def _positive_integer(value) -> None:
     if not (isinstance(value, int) and value > 0):
         raise ValueError("Expected positive integer")
 
 
-def _validate_dir(directory):
+def _validate_dir(directory) -> None:
     if not os.path.isdir(directory):
         raise ValueError("The directory {} could not be found".format(directory))

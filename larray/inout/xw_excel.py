@@ -1,6 +1,8 @@
 import os
 import atexit
 
+from typing import Any, List, Tuple, Union, Iterator, Optional
+
 import numpy as np
 try:
     import xlwings as xw
@@ -26,7 +28,7 @@ if xw is not None:
     global_app = None
 
 
-    def is_app_alive(app):
+    def is_app_alive(app) -> bool:
         try:
             app.books
             return True
@@ -34,7 +36,7 @@ if xw is not None:
             return False
 
 
-    def kill_global_app():
+    def kill_global_app() -> None:
         global global_app
 
         if global_app is not None:
@@ -51,18 +53,18 @@ if xw is not None:
         writes_types = Array
 
         @classmethod
-        def read_value(cls, value, options):
+        def read_value(cls, value, options) -> Array:
             df = PandasDataFrameConverter.read_value(value, options)
             return df_asarray(df)
 
         @classmethod
-        def write_value(cls, value, options):
+        def write_value(cls, value, options) -> Any:
             df = value.to_frame(fold_last_axis_name=True)
             return PandasDataFrameConverter.write_value(df, options)
 
     ArrayConverter.register(Array)
 
-    def _disable_screen_updates(app):
+    def _disable_screen_updates(app) -> None:
         xl_app = app.api
         xl_app.ScreenUpdating = False
         xl_app.DisplayStatusBar = False
@@ -74,7 +76,13 @@ if xw is not None:
 
     # TODO: replace overwrite_file by mode='r'|'w'|'a' the day xlwings will support a read-only mode
     class Workbook(object):
-        def __init__(self, filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None):
+        delayed_filepath: Optional[str]
+        filepath: Optional[str]
+        new_workbook: bool
+        active_workbook: bool
+
+        def __init__(self, filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None) \
+                -> None:
             global global_app
 
             xw_wkb = None
@@ -193,13 +201,13 @@ if xw is not None:
                 app.api.AskToUpdateLinks = update_links_backup
                 app.display_alerts = display_alerts_backup
 
-            self.xw_wkb = xw_wkb
+            self.xw_wkb: xw.Book = xw_wkb
 
         @property
-        def app(self):
+        def app(self) -> xw.App:
             return self.xw_wkb.app
 
-        def __contains__(self, key):
+        def __contains__(self, key) -> bool:
             if isinstance(key, int):
                 length = len(self)
                 return -length <= key < length
@@ -211,14 +219,14 @@ if xw is not None:
         def _ipython_key_completions_(self):
             return list(self.sheet_names())
 
-        def __getitem__(self, key):
+        def __getitem__(self, key) -> 'Sheet':
             key = _translate_sheet_name(key)
             if key in self:
                 return Sheet(self, key)
             else:
                 raise KeyError('Workbook has no sheet named {}'.format(key))
 
-        def __setitem__(self, key, value):
+        def __setitem__(self, key, value) -> None:
             key = _translate_sheet_name(key)
             if self.new_workbook:
                 self.xw_wkb.sheets[0].name = key
@@ -249,13 +257,13 @@ if xw is not None:
                 sheet = Sheet(None, None, xw_sheet=xw_sheet)
             sheet["A1"] = value
 
-        def __delitem__(self, key):
+        def __delitem__(self, key) -> None:
             self[key].delete()
 
-        def sheet_names(self):
+        def sheet_names(self) -> List[str]:
             return [s.name for s in self]
 
-        def save(self, path=None, password=None):
+        def save(self, path=None, password=None) -> None:
             r"""Save Workbook to file.
 
             Parameters
@@ -294,23 +302,23 @@ if xw is not None:
             else:
                 self.xw_wkb.close()
 
-        def __iter__(self):
+        def __iter__(self) -> Iterator['Sheet']:
             return iter([Sheet(None, None, xw_sheet)
                          for xw_sheet in self.xw_wkb.sheets])
 
-        def __len__(self):
+        def __len__(self) -> int:
             return len(self.xw_wkb.sheets)
 
-        def __dir__(self):
+        def __dir__(self) -> List[str]:
             return list(set(dir(self.__class__)) | set(dir(self.xw_wkb)))
 
-        def __getattr__(self, key):
+        def __getattr__(self, key) -> Any:
             return getattr(self.xw_wkb, key)
 
-        def __enter__(self):
+        def __enter__(self) -> 'Workbook':
             return self
 
-        def __exit__(self, type_, value, traceback):
+        def __exit__(self, type_, value, traceback) -> None:
             # XXX: we should probably also avoid closing the workbook for visible=True???
             # XXX: we might want to disallow using open_excel as a context manager (in __enter__)
             #      when we have nothing to do in close because it is kinda misleading (this might piss off
@@ -318,12 +326,12 @@ if xw is not None:
             if not self.active_workbook:
                 self.close()
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             cls = self.__class__
             return '<{}.{} [{}]>'.format(cls.__module__, cls.__name__, self.name)
 
 
-    def _fill_slice(s, length):
+    def _fill_slice(s, length) -> slice:
         r"""
         replaces a slice None bounds by actual bounds.
 
@@ -341,7 +349,7 @@ if xw is not None:
         return slice(s.start if s.start is not None else 0, s.stop if s.stop is not None else length, s.step)
 
 
-    def _concrete_key(key, obj, ndim=2):
+    def _concrete_key(key, obj, ndim=2) -> List[Union[int, slice]]:
         r"""Expand key to ndim and replace None in slices start/stop bounds by 0 or obj.shape[corresponding_dim]
         respectively.
 
@@ -374,14 +382,14 @@ if xw is not None:
 
 
     class Sheet(object):
-        def __init__(self, workbook, key, xw_sheet=None):
+        def __init__(self, workbook, key, xw_sheet=None) -> None:
             if xw_sheet is None:
                 xw_sheet = workbook.xw_wkb.sheets[key]
             object.__setattr__(self, 'xw_sheet', xw_sheet)
 
         # TODO: we can probably scrap this for xlwings 0.9+. We need to have
         #       a unit test for this though.
-        def __getitem__(self, key):
+        def __getitem__(self, key) -> 'Range':
             if isinstance(key, string_types):
                 return Range(self, key)
 
@@ -393,13 +401,13 @@ if xw is not None:
             else:
                 return Range(self, (row + 1, col + 1))
 
-        def __setitem__(self, key, value):
+        def __setitem__(self, key, value) -> None:
             if isinstance(value, Array):
                 value = value.dump(header=False)
             self[key].xw_range.value = value
 
         @property
-        def shape(self):
+        def shape(self) -> Tuple[int, int]:
             r"""
             shape of sheet including top-left empty rows/columns but excluding bottom-right ones.
             """
@@ -459,29 +467,29 @@ if xw is not None:
                 return max_row, max_col
 
         @property
-        def ndim(self):
+        def ndim(self) -> int:
             return 2
 
-        def __array__(self, dtype=None):
+        def __array__(self, dtype=None) -> np.ndarray:
             return np.asarray(self[:], dtype=dtype)
 
-        def __dir__(self):
+        def __dir__(self) -> List[str]:
             return list(set(dir(self.__class__)) | set(dir(self.xw_sheet)))
 
-        def __getattr__(self, key):
+        def __getattr__(self, key) -> Any:
             return getattr(self.xw_sheet, key)
 
-        def __setattr__(self, key, value):
+        def __setattr__(self, key, value) -> None:
             setattr(self.xw_sheet, key, value)
 
         @deprecate_kwarg('nb_index', 'nb_axes', arg_converter=lambda x: x + 1)
         def load(self, header=True, convert_float=True, nb_axes=None, index_col=None, fill_value=nan,
-                 sort_rows=False, sort_columns=False, wide=True):
+                 sort_rows=False, sort_columns=False, wide=True) -> Array:
             return self[:].load(header=header, convert_float=convert_float, nb_axes=nb_axes, index_col=index_col,
                                 fill_value=fill_value, sort_rows=sort_rows, sort_columns=sort_columns, wide=wide)
 
         # TODO: generalize to more than 2 dimensions or scrap it
-        def array(self, data, row_labels=None, column_labels=None, names=None):
+        def array(self, data, row_labels=None, column_labels=None, names=None) -> Array:
             r"""
 
             Parameters
@@ -506,24 +514,24 @@ if xw is not None:
                 labels = (row_labels, column_labels)
                 axes = [Axis(axis_labels, name) for axis_labels, name in zip(labels, names)]
             else:
-                axes = (row_labels, column_labels)
+                axes = [row_labels, column_labels]
             # _converted_value is used implicitly via Range.__array__
             return Array(np.asarray(self[data]), axes)
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             cls = self.__class__
             xw_sheet = self.xw_sheet
             return '<{}.{} [{}]{}>'.format(cls.__module__, cls.__name__, xw_sheet.book.name, xw_sheet.name)
 
 
     class Range(object):
-        def __init__(self, sheet, *args):
+        def __init__(self, sheet, *args) -> None:
             xw_range = sheet.xw_sheet.range(*args)
 
             object.__setattr__(self, 'sheet', sheet)
             object.__setattr__(self, 'xw_range', xw_range)
 
-        def _range_key_to_sheet_key(self, key):
+        def _range_key_to_sheet_key(self, key) -> Tuple[Union[slice, int], Union[slice, int]]:
             # string keys does not make sense in this case
             assert not isinstance(key, string_types)
             row_offset = self.xw_range.row1 - 1
@@ -535,13 +543,13 @@ if xw is not None:
 
         # TODO: we can probably scrap this for xlwings 0.9+. We need to have
         #       a unit test for this though.
-        def __getitem__(self, key):
+        def __getitem__(self, key) -> 'Range':
             return self.sheet[self._range_key_to_sheet_key(key)]
 
-        def __setitem__(self, key, value):
+        def __setitem__(self, key, value) -> None:
             self.sheet[self._range_key_to_sheet_key(key)] = value
 
-        def _converted_value(self, convert_float=True):
+        def _converted_value(self, convert_float=True) -> Any:
             list_data = self.xw_range.value
 
             # As of version 0.7.2 of xlwings, there is no built-in converter for
@@ -578,35 +586,35 @@ if xw is not None:
             else:
                 raise TypeError("only integer scalars can be converted to a scalar index")
 
-        def __array__(self, dtype=None):
+        def __array__(self, dtype=None) -> np.ndarray:
             return np.array(self._converted_value(), dtype=dtype)
 
-        def __larray__(self):
+        def __larray__(self) -> Array:
             return Array(self._converted_value())
 
-        def __dir__(self):
+        def __dir__(self) -> List[str]:
             return list(set(dir(self.__class__)) | set(dir(self.xw_range)))
 
-        def __getattr__(self, key):
+        def __getattr__(self, key) -> Any:
             if hasattr(Array, key):
                 return getattr(self.__larray__(), key)
             else:
                 return getattr(self.xw_range, key)
 
-        def __setattr__(self, key, value):
+        def __setattr__(self, key, value) -> None:
             setattr(self.xw_range, key, value)
 
         # TODO: implement all binops
         # def __mul__(self, other):
         #     return self.__larray__() * other
 
-        def __str__(self):
+        def __str__(self) -> str:
             return str(self.__larray__())
         __repr__ = __str__
 
         @deprecate_kwarg('nb_index', 'nb_axes', arg_converter=lambda x: x + 1)
         def load(self, header=True, convert_float=True, nb_axes=None, index_col=None, fill_value=nan,
-                 sort_rows=False, sort_columns=False, wide=True):
+                 sort_rows=False, sort_columns=False, wide=True) -> Array:
             if not self.ndim:
                 return Array([])
 
@@ -620,11 +628,12 @@ if xw is not None:
 
 
     # XXX: deprecate this function?
-    def open_excel(filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None):
+    def open_excel(filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None) \
+            -> Workbook:
         return Workbook(filepath, overwrite_file=overwrite_file, visible=visible, silent=silent, app=app,
                         load_addins=load_addins)
 else:
-    class Workbook(object):
+    class Workbook(object):     # type: ignore
         def __init__(self, filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None):
             raise Exception("Workbook class cannot be instantiated because xlwings is not installed")
 
@@ -640,7 +649,8 @@ else:
         def close(self):
             raise Exception()
 
-    def open_excel(filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None):
+    def open_excel(filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None) \
+            -> Workbook:
         raise Exception("open_excel() is not available because xlwings is not installed")
 
 

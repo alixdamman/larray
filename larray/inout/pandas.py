@@ -1,5 +1,7 @@
 from itertools import product
 
+from typing import Any, Union, List, Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -9,7 +11,7 @@ from larray.core.constants import nan
 from larray.util.misc import unique
 
 
-def decode(s, encoding='utf-8', errors='strict'):
+def decode(s, encoding='utf-8', errors='strict') -> Union[None, str]:
     if isinstance(s, bytes):
         return s.decode(encoding, errors)
     else:
@@ -17,7 +19,7 @@ def decode(s, encoding='utf-8', errors='strict'):
         return s
 
 
-def parse(s):
+def parse(s) -> Any:
     r"""
     Used to parse the "folded" axis ticks (usually periods).
     """
@@ -40,7 +42,7 @@ def parse(s):
         return s
 
 
-def index_to_labels(idx, sort=True):
+def index_to_labels(idx, sort=True) -> List[Any]:
     r"""
     Returns unique labels for each dimension.
     """
@@ -55,7 +57,8 @@ def index_to_labels(idx, sort=True):
         return [sorted(labels) if sort else labels]
 
 
-def cartesian_product_df(df, sort_rows=False, sort_columns=False, fill_value=nan, **kwargs):
+def cartesian_product_df(df, sort_rows=False, sort_columns=False, fill_value=nan, **kwargs) \
+        -> Union[Tuple[pd.DataFrame, List[Any]], pd.DataFrame]:
     idx = df.index
     labels = index_to_labels(idx, sort=sort_rows)
     if isinstance(idx, pd.MultiIndex):
@@ -76,7 +79,7 @@ def cartesian_product_df(df, sort_rows=False, sort_columns=False, fill_value=nan
     return df.reindex(index=new_index, columns=columns, fill_value=fill_value, **kwargs), labels
 
 
-def from_series(s, sort_rows=False, fill_value=nan, meta=None, **kwargs):
+def from_series(s, sort_rows=False, fill_value=nan, meta=None, **kwargs) -> Array:
     r"""
     Converts Pandas Series into Array.
 
@@ -145,7 +148,7 @@ def from_series(s, sort_rows=False, fill_value=nan, meta=None, **kwargs):
 
 
 def from_frame(df, sort_rows=False, sort_columns=False, parse_header=False, unfold_last_axis_name=False,
-               fill_value=nan, meta=None, cartesian_prod=True, **kwargs):
+               fill_value=nan, meta=None, cartesian_prod=True, **kwargs) -> Array:
     r"""
     Converts Pandas DataFrame into Array.
 
@@ -230,7 +233,7 @@ def from_frame(df, sort_rows=False, sort_columns=False, parse_header=False, unfo
     if unfold_last_axis_name:
         if isinstance(axes_names[-1], str) and '\\' in axes_names[-1]:
             last_axes = [name.strip() for name in axes_names[-1].split('\\')]
-            axes_names = axes_names[:-1] + last_axes
+            axes_names = axes_names[:-1] + last_axes                            # type: ignore[operator]
         else:
             axes_names += [None]
     else:
@@ -254,7 +257,7 @@ def from_frame(df, sort_rows=False, sort_columns=False, parse_header=False, unfo
     return Array(data, axes, meta=meta)
 
 
-def set_dataframe_index_by_position(df, index_col_indices):
+def set_dataframe_index_by_position(df, index_col_indices) -> pd.DataFrame:
     """
     equivalent to Dataframe.set_index but with column indices, not column labels
 
@@ -275,7 +278,7 @@ def set_dataframe_index_by_position(df, index_col_indices):
 
 
 def df_asarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header=True, wide=True, cartesian_prod=True,
-               **kwargs):
+               **kwargs) -> Array:
     r"""
     Prepare Pandas DataFrame and then convert it into Array.
 
@@ -353,6 +356,7 @@ def df_asarray(df, sort_rows=False, sort_columns=False, raw=False, parse_header=
             if not name:
                 name = None
             return name
+
         axes_names = [parse_axis_name(name) for name in df.index.names]
         unfold_last_axis_name = isinstance(axes_names[-1], str) and '\\' in axes_names[-1]
         res = from_frame(df, sort_rows=sort_rows, sort_columns=sort_columns, parse_header=parse_header,

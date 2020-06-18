@@ -219,7 +219,7 @@ class TestRange(object):
             assert np.array_equal(res1, arr1.data)
             assert res1.dtype == arr1.dtype
 
-    def test_asarray(self):
+    def test_asarray_anonymous_axes(self):
         with open_excel(visible=False) as wb:
             sheet = wb[0]
 
