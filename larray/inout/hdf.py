@@ -152,7 +152,7 @@ class PandasHDFHandler(FileHandler):
         items += [(key.split('/')[-1], 'Group_Backward_Comp') for key in keys if '__groups__' in key]
         return items
 
-    def _read_item(self, key, typename, *args, **kwargs) -> HDFType:        # type: ignore
+    def _read_item(self, key, typename, *args, **kwargs) -> HDFType:
         if typename in _supported_typenames:
             hdf_key = '/' + key
         # ---- for backward compatibility (LArray < 0.33) ----
@@ -169,7 +169,7 @@ class PandasHDFHandler(FileHandler):
         if isinstance(value, (Array, Axis)):
             value.to_hdf(self.handle, hdf_key)
         elif isinstance(value, Group):
-            hdf_axis_key = '/' + value.axis.name                        # type: ignore
+            hdf_axis_key = '/' + value.axis.name
             value.to_hdf(self.handle, hdf_key, hdf_axis_key)
         elif isinstance(value, _supported_scalars_types):
             s = pd.Series(data=value)

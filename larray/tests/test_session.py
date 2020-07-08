@@ -34,10 +34,10 @@ def assertObjListEqual(got, expected):
 a = Axis('a=a0..a2')
 a2 = Axis('a=a0..a4')
 anonymous = Axis(4)
-a01 = a['a0,a1'] >> 'a01'           # type: ignore[operator] # Unsupported left operand type for >> (List/Tuple[Group])
+a01 = a['a0,a1'] >> 'a01'            # Unsupported left operand type for >> (List/Tuple[Group])
 ano01 = a['a0,a1']
 b = Axis('b=0..4')
-b024 = b[[0, 2, 4]] >> 'b024'       # type: ignore[operator] # Unsupported left operand type for >> (List/Tuple[Group])
+b024 = b[[0, 2, 4]] >> 'b024'        # Unsupported left operand type for >> (List/Tuple[Group])
 c = 'c'
 d: Dict[Any, Any] = {}
 e = ndtest([(2, 'a'), (3, 'b')])

@@ -31,7 +31,7 @@ def is_interactive_interpreter() -> bool:
         # When running using IPython, sys.ps1 is always defined, so we cannot use the standard "hasattr(sys, 'ps1')"
         # Additionally, an InProcessInteractiveShell can have a __main__ module with a file
         main_lacks_file = not hasattr(__main__, '__file__')
-        ipython_class_name = get_ipython().__class__.__name__                           # type: ignore[name-defined]
+        ipython_class_name = get_ipython().__class__.__name__
         return main_lacks_file or ipython_class_name == 'InProcessInteractiveShell'
     except NameError:
         return hasattr(sys, 'ps1')
@@ -244,7 +244,7 @@ def light_product(*iterables: Iterable[T], **kwargs: Dict[str, Any]) -> Iterator
     >>> list(light_product('ab', repeat=2))
     [('a', 'a'), ('', 'b'), ('b', 'a'), ('', 'b')]
     """
-    repeat: int = kwargs.pop('repeat', 1)           # type: ignore[assignment]
+    repeat: int = kwargs.pop('repeat', 1)
     p = product(*iterables, repeat=repeat)
     prev_t = (None,) * len(iterables) * repeat
     for t in p:
@@ -805,7 +805,7 @@ class SequenceZip(Sequence[Sequence[T_co]]):
     def __len__(self) -> int:
         return self._length
 
-    def __getitem__(self, key: KeyGetitem) -> Union[Tuple[T_co, ...], Iterable[Sequence[T_co]]]:    # type: ignore
+    def __getitem__(self, key: KeyGetitem) -> Union[Tuple[T_co, ...], Iterable[Sequence[T_co]]]:
         if isinstance(key, (int, np.integer)):
             return tuple(seq[key] for seq in self.sequences)
         else:
@@ -873,7 +873,7 @@ class Repeater(Sequence[T_co]):
     def __len__(self) -> int:
         return self.n
 
-    def __getitem__(self, key: KeyGetitem) -> Union[T_co, Sequence[T_co]]:                          # type: ignore
+    def __getitem__(self, key: KeyGetitem) -> Union[T_co, Sequence[T_co]]:
         if isinstance(key, (int, np.integer)):
             if key >= self.n or key < -self.n:
                 raise IndexError('index out of range')
@@ -933,7 +933,7 @@ class Product(Sequence[T_co]):
     def __len__(self) -> int:
         return self._length
 
-    def __getitem__(self, key: KeyGetitem) -> Union[Tuple[T_co, ...], List[Tuple[T_co, ...]]]:      # type: ignore
+    def __getitem__(self, key: KeyGetitem) -> Union[Tuple[T_co, ...], List[Tuple[T_co, ...]]]:
         if isinstance(key, (int, np.integer)):
             if key >= self._length:
                 raise IndexError("index %d out of range for Product of length %d" % (key, self._length))
@@ -951,7 +951,7 @@ class Product(Sequence[T_co]):
                           for array, (div, mod) in zip(arrays, div_mod))
                     for idx in range(start, stop, step)]
 
-    def __iter__(self) -> Iterator[Tuple[T_co, ...]]:           # type: ignore
+    def __iter__(self) -> Iterator[Tuple[T_co, ...]]:
         return product(*self.sequences)
 
     def __repr__(self) -> str:

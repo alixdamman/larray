@@ -416,7 +416,7 @@ class AbstractExcelReport(AbstractReportItem):
     >>> report.to_excel('Demography_Report.xlsx')
     """
 
-    def new_sheet(self, sheet_name) -> 'SheetReport':           # type: ignore[name-defined]
+    def new_sheet(self, sheet_name) -> 'SheetReport':
         r"""
         Add a new empty output sheet.
         This sheet will contain only graphical elements, all data are exported
@@ -762,11 +762,11 @@ if xw is not None:
                 # reset
                 self.sheets.clear()
 else:
-    class ReportSheet(AbstractReportSheet):             # type: ignore[no-redef]
+    class ReportSheet(AbstractReportSheet):
         def __init__(self) -> None:
             raise Exception("SheetReport class cannot be instantiated because xlwings is not installed")
 
-    class ExcelReport(AbstractExcelReport):             # type: ignore[no-redef]
+    class ExcelReport(AbstractExcelReport):
         def __init__(self) -> None:
             raise Exception("ExcelReport class cannot be instantiated because xlwings is not installed")
 

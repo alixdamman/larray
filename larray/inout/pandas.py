@@ -233,7 +233,7 @@ def from_frame(df, sort_rows=False, sort_columns=False, parse_header=False, unfo
     if unfold_last_axis_name:
         if isinstance(axes_names[-1], str) and '\\' in axes_names[-1]:
             last_axes = [name.strip() for name in axes_names[-1].split('\\')]
-            axes_names = axes_names[:-1] + last_axes                            # type: ignore[operator]
+            axes_names = axes_names[:-1] + last_axes
         else:
             axes_names += [None]
     else:

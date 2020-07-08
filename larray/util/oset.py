@@ -56,7 +56,7 @@ class OrderedSet(set):
 
     # added comment type: ignore because mypy expects the signature:
     # update(self, *iterable: Iterable[_T]) -> None
-    def update(self, iterable) -> 'OrderedSet':                 # type: ignore
+    def update(self, iterable) -> 'OrderedSet':
         for e in iterable:
             if e not in self:
                 self._list.append(e)
@@ -64,45 +64,45 @@ class OrderedSet(set):
         return self
     __ior__ = update
 
-    def union(self, other) -> 'OrderedSet':                     # type: ignore
+    def union(self, other) -> 'OrderedSet':
         result = self.__class__(self)
         result.update(other)
         return result
     __or__ = union
     __add__ = union
 
-    def intersection(self, other) -> 'OrderedSet':              # type: ignore
+    def intersection(self, other) -> 'OrderedSet':
         other = set(other)
         return self.__class__(a for a in self if a in other)
     __and__ = intersection
 
-    def symmetric_difference(self, other) -> 'OrderedSet':      # type: ignore
+    def symmetric_difference(self, other) -> 'OrderedSet':
         other = set(other)
         result = self.__class__(a for a in self if a not in other)
         result.update(a for a in other if a not in self)
         return result
     __xor__ = symmetric_difference
 
-    def difference(self, other) -> 'OrderedSet':                # type: ignore
+    def difference(self, other) -> 'OrderedSet':
         other = set(other)
         return self.__class__(a for a in self if a not in other)
     __sub__ = difference
 
-    def intersection_update(self, other) -> 'OrderedSet':       # type: ignore
+    def intersection_update(self, other) -> 'OrderedSet':
         other = set(other)
         set.intersection_update(self, other)
         self._list = [a for a in self._list if a in other]
         return self
     __iand__ = intersection_update
 
-    def symmetric_difference_update(self, other) -> 'OrderedSet':   # type: ignore
+    def symmetric_difference_update(self, other) -> 'OrderedSet':
         set.symmetric_difference_update(self, other)
         self._list = [a for a in self._list if a in self]
         self._list += [a for a in other._list if a in self]
         return self
     __ixor__ = symmetric_difference_update
 
-    def difference_update(self, other) -> 'OrderedSet':         # type: ignore
+    def difference_update(self, other) -> 'OrderedSet':
         set.difference_update(self, other)
         self._list = [a for a in self._list if a in self]
         return self

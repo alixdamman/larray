@@ -174,7 +174,7 @@ def generalized_range(start, stop, step=1) -> Union[List[str], range]:
                     r = [str(num) for num in rng]
                 else:
                     pad = start_pad if stop_pad is None else stop_pad
-                    r = ['%0*d' % (pad, num) for num in rng]                                # type: ignore[str-format]
+                    r = ['%0*d' % (pad, num) for num in rng]
             elif start_part.isalpha():
                 assert stop_part.isalpha()
                 int_start = [ord(c) for c in start_part]
@@ -232,7 +232,7 @@ def _range_str_to_range(s, stack_depth=1) -> Union[List[str], range]:
     s = s.strip()
     m = _range_str_pattern.match(s)
 
-    groups = m.groupdict()                                                              # type: ignore[union-attr]
+    groups = m.groupdict()
     start, stop, step = groups['start'], groups['stop'], groups['step']
     start = _parse_bound(start, stack_depth + 1) if start is not None else 0
     if stop is None:
@@ -755,7 +755,7 @@ class Group(object):
 
         # we do NOT assign a name automatically when missing because that makes it impossible to know whether a name
         # was explicitly given or not
-        self.name = _to_tick(name) if name is not None else name                        # type: ignore[assignment]
+        self.name = _to_tick(name) if name is not None else name
         assert axis is None or isinstance(axis, (str, int, ABCAxis)), \
             "invalid axis '%s' (%s)" % (axis, type(axis).__name__)
 
@@ -858,7 +858,7 @@ class Group(object):
                 raise ValueError('cannot retarget a Group defined without a real axis object (e.g. using '
                                  'an AxisReference (X.)) to an axis with a different name')
             return self.__class__(self.key, self.name, target_axis)
-        elif isinstance(self.axis, int) or self.axis.equals(target_axis):               # type: ignore[union-attr]
+        elif isinstance(self.axis, int) or self.axis.equals(target_axis):
             # in the case of isinstance(self.axis, int), we can only hope the axis corresponds. This is the
             # case if we come from _translate_axis_key_chunk, but if the users calls this manually, we cannot know.
             # XXX: maybe changing this to retarget_to_axes would be a good idea after all?
@@ -979,7 +979,7 @@ class Group(object):
     # IGroup[] => LGroup
     # IGroup.i[] => IGroup
     # LGroup.i[] => IGroup
-    def __getitem__(self, key) -> 'Group':                                                  # type: ignore[return]
+    def __getitem__(self, key) -> 'Group':
         r"""
 
         Parameters
@@ -1020,7 +1020,7 @@ class Group(object):
                 return IGroup([orig_start_pos + k * orig_step for k in key], None, self.axis)
         elif isinstance(orig_key, ABCArray):
             # XXX: why .i ?
-            return cls(orig_key.i[key], None, self.axis)                                # type: ignore[attr-defined]
+            return cls(orig_key.i[key], None, self.axis)
         elif np.isscalar(orig_key):
             # give the opportunity to subset the label/key itself (for example for string keys)
             value = self.eval()
@@ -1032,7 +1032,7 @@ class Group(object):
         return list(self.eval())
 
     # method factory
-    def _binop(opname: str):     # type: ignore
+    def _binop(opname: str):
         op_fullname = '__%s__' % opname
 
         # TODO: implement this in a delayed fashion for axes references
@@ -1458,9 +1458,9 @@ class Group(object):
             key = self.name
         key = _translate_group_key_hdf(key)
         if axis_key is None:
-            if self.axis.name is None:                                                      # type: ignore[union-attr]
+            if self.axis.name is None:
                 raise ValueError("Argument axis_key must be provided explicitly if the associated axis is anonymous")
-            axis_key = self.axis.name                                                       # type: ignore[union-attr]
+            axis_key = self.axis.name
         data = self.eval()
         dtype_kind = data.dtype.kind if isinstance(data, np.ndarray) else ''
         if dtype_kind == 'U':
@@ -1471,7 +1471,7 @@ class Group(object):
             store.get_storer(key).attrs.type = 'Group'
             store.get_storer(key).attrs.dtype_kind = dtype_kind
             if axis_key not in store:
-                self.axis.to_hdf(store, key=axis_key)                                       # type: ignore[union-attr]
+                self.axis.to_hdf(store, key=axis_key)
             store.get_storer(key).attrs.axis_key = axis_key
 
     # this makes range(LGroup(int)) possible
@@ -1535,7 +1535,7 @@ def remove_nested_groups(key) -> GroupKey:
         return slice(start, stop, key.step)
     elif isinstance(key, (tuple, list)):
         res = [k.to_label() if isinstance(k, Group) else k for k in key]
-        return tuple(res) if isinstance(key, tuple) else res                            # type: ignore[return-value]
+        return tuple(res) if isinstance(key, tuple) else res
     else:
         return key
 
@@ -1580,7 +1580,7 @@ class LGroup(Group):
         if bound is None:
             bound = self.key
         if isinstance(self.axis, ABCAxis):
-            pos = self.axis.index(bound)                                                # type: ignore[attr-defined]
+            pos = self.axis.index(bound)
             return (pos + int(stop)) if np.isscalar(pos) else pos
         else:
             raise ValueError("Cannot translate an LGroup without axis")
@@ -1643,7 +1643,7 @@ class LSet(LGroup):
         LGroup.__init__(self, key, name, axis)
 
     # method factory
-    def _binop(opname: str, c: str):      # type: ignore
+    def _binop(opname: str, c: str):
         op_fullname = '__%s__' % opname
 
         # TODO: implement this in a delayed fashion for reference axes

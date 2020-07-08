@@ -475,7 +475,7 @@ def get_axis(obj, i) -> Axis:
     >>> get_axis(np_arr, 1)
     Axis(2, None)
     """
-    return obj.axes[i] if isinstance(obj, Array) else Axis(obj.shape[i])    # type: ignore[return-value]
+    return obj.axes[i] if isinstance(obj, Array) else Axis(obj.shape[i])
 
 
 _arg_agg: Dict[str, str] = {
@@ -2049,7 +2049,7 @@ class Array(ABCArray):
             # for users by "incompatible axes"
             extra_axes = [axis for axis in value.axes - target_axes if len(axis) > 1]
             if extra_axes:
-                extra_axes = AxisCollection(extra_axes)         # type: ignore[assignment]
+                extra_axes = AxisCollection(extra_axes)
                 axes = AxisCollection(target_axes)
                 text = 'axes are' if len(extra_axes) > 1 else 'axis is'
                 raise ValueError("Value {!s} {} not present in target subset {!s}. A value can only have the same axes "
@@ -2477,9 +2477,9 @@ class Array(ABCArray):
                 # any "tick" below it and we add an empty "tick".
                 ticks = [['']]
             elif light:
-                ticks = light_product(*labels)                                  # type: ignore[assignment]
+                ticks = light_product(*labels)
             else:
-                ticks = Product(labels)                                         # type: ignore[assignment]
+                ticks = Product(labels)
 
             # computes the first line
             other_colnames = ensure_no_numpy_type(self.axes[-1].labels) if wide else [value_name]
@@ -5376,7 +5376,7 @@ class Array(ABCArray):
         return self._cum_aggregate(np.cumprod, axis)
 
     # element-wise method factory
-    def _binop(opname: str):        # type: ignore
+    def _binop(opname: str):
         fullname = '__%s__' % opname
         super_method = getattr(np.ndarray, fullname)
 
@@ -5537,7 +5537,7 @@ class Array(ABCArray):
         return other.__matmul__(self)
 
     # element-wise method factory
-    def _unaryop(opname: str):   # type: ignore
+    def _unaryop(opname: str):
         fullname = '__%s__' % opname
         super_method = getattr(np.ndarray, fullname)
 
@@ -6463,11 +6463,11 @@ class Array(ABCArray):
         if len(args) == 1 and isinstance(args[0], (tuple, list, AxisCollection)):
             axes = args[0]
         elif len(args) == 0:
-            axes = self.axes[::-1]                                                      # type: ignore[assignment]
+            axes = self.axes[::-1]
         else:
             axes = args
 
-        axes = self.axes[axes]                                                          # type: ignore[assignment]
+        axes = self.axes[axes]
         axes_indices = [self.axes.index(axis) for axis in axes]
         # this whole mumbo jumbo is required (for now) for anonymous axes
         indices_present = set(axes_indices)
@@ -9317,7 +9317,7 @@ def stack(elements=None, axes=None, title=None, meta=None, dtype=None, res_axes=
                 assert all(np.isscalar(k) or isinstance(k, (Group, tuple)) for k in keys)
                 # TODO: add support for more than one axis here
                 axes = AxisCollection(Axis(keys, axes))
-                items = list(zip(axes[0], values))          # type: ignore[assignment]
+                items = list(zip(axes[0], values))
             else:
                 def translate_and_sort_key(key, axes):
                     dict_of_igroups = {k.axis: k for k in axes._key_to_igroups(key)}
@@ -9325,14 +9325,14 @@ def stack(elements=None, axes=None, title=None, meta=None, dtype=None, res_axes=
 
                 # passing only via _key_to_igroup should be enough if we allow for partial axes
                 dict_elements = {translate_and_sort_key(key, axes): value for key, value in elements}
-                items = [(k, dict_elements[k]) for k in axes.iter_labels()]         # type: ignore[assignment]
+                items = [(k, dict_elements[k]) for k in axes.iter_labels()]
         else:
             if axes is None or isinstance(axes, str):
                 axes = AxisCollection(Axis(len(elements), axes))
             else:
                 # TODO: add support for more than one axis here
                 assert axes.ndim == 1 and len(axes[0]) == len(elements)
-            items = list(zip(axes[0], elements))        # type: ignore[assignment]
+            items = list(zip(axes[0], elements))
     else:
         raise TypeError('unsupported type for arrays: %s' % type(elements).__name__)
 

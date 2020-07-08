@@ -633,7 +633,7 @@ if xw is not None:
         return Workbook(filepath, overwrite_file=overwrite_file, visible=visible, silent=silent, app=app,
                         load_addins=load_addins)
 else:
-    class Workbook(object):     # type: ignore
+    class Workbook(object):
         def __init__(self, filepath=None, overwrite_file=False, visible=None, silent=None, app=None, load_addins=None):
             raise Exception("Workbook class cannot be instantiated because xlwings is not installed")
 

@@ -524,14 +524,14 @@ class Session(object):
             engine = ext_default_engine[ext]
         handler_cls = get_file_handler(engine)
         if engine == 'pandas_csv' and 'sep' in kwargs:
-            handler = handler_cls(fname, overwrite, kwargs['sep'])      # type: ignore[call-arg]
+            handler = handler_cls(fname, overwrite, kwargs['sep'])
         else:
             handler = handler_cls(fname, overwrite)
         meta = self.meta if overwrite else None
         items = self.items()
         if names is not None:
             names_set = set(names)
-            items = [(k, v) for k, v in items if k in names_set]        # type: ignore[assignment]
+            items = [(k, v) for k, v in items if k in names_set]
         handler.dump(meta, items, display=display, **kwargs)
 
     def to_globals(self, names=None, depth=0, warn=True, inplace=False) -> None:
@@ -582,7 +582,7 @@ class Session(object):
         items = self.items()
         if names is not None:
             names_set = set(names)
-            items = [(k, v) for k, v in items if k in names_set]            # type: ignore[assignment]
+            items = [(k, v) for k, v in items if k in names_set]
         if inplace:
             for k, v in items:
                 if k not in d:
@@ -1013,7 +1013,7 @@ class Session(object):
         return len(self._objects)
 
     # binary operations are dispatched element-wise to all arrays (we consider Session as an array-like)
-    def _binop(opname: str, arrays_only=True):      # type: ignore
+    def _binop(opname: str, arrays_only=True):
         opfullname = '__%s__' % opname
 
         def opmethod(self, other):
@@ -1060,7 +1060,7 @@ class Session(object):
 
     # element-wise method factory
     # unary operations are (also) dispatched element-wise to all arrays
-    def _unaryop(opname: str):       # type: ignore
+    def _unaryop(opname: str):
         opfullname = '__%s__' % opname
 
         def opmethod(self):
