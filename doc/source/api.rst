@@ -413,7 +413,9 @@ Testing/Searching
    :toctree: _generated/
 
    Array.equals
+   Array.allclose
    Array.eq
+   Array.isclose
    Array.isin
    Array.nonzero
    Array.all
