@@ -34,6 +34,8 @@ import sys
 import functools
 import warnings
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -5671,7 +5673,7 @@ class Array(ABCArray):
 
         See Also
         --------
-        Array.eq
+        Array.eq, Array.allclose
 
         Notes
         -----
@@ -5773,6 +5775,80 @@ class Array(ABCArray):
         except ValueError:
             return False
 
+    def allclose(self, other: Any, rtol: float = 1e-05, atol: float = 1e-08, nans_equal: bool = True,
+                 check_axes: bool = False) -> bool:
+        """
+        Compares self with another array and returns True if they are element-wise equal within a tolerance.
+
+        The tolerance values are positive, typically very small numbers.
+        The relative difference (rtol * abs(other)) and the absolute difference atol are added together to compare
+        against the absolute difference between self and other.
+
+        NaN values are treated as equal if they are in the same place and if `nans_equal=True`.
+
+        Parameters
+        ----------
+        other : Array-like
+            Input array. asarray() is used on a non-Array input.
+        rtol : float or int, optional
+            The relative tolerance parameter (see Notes). Defaults to 1e-05.
+        atol : float or int, optional
+            The absolute tolerance parameter (see Notes). Defaults to 1e-08.
+        nans_equal : boolean, optional
+            Whether or not to consider NaN values at the same positions in the two arrays as equal.
+            By default, an array containing NaN values is never equal to another array, even if that other array
+            also contains NaN values at the same positions. The reason is that a NaN value is different from
+            *anything*, including itself. Defaults to True.
+        check_axes : boolean, optional
+            Whether or not to check that the set of axes and their order is the same on both sides. Defaults to False.
+            If False, two arrays with compatible axes (and the same data) will compare equal, even if some axis is
+            missing on either side or if the axes are in a different order.
+
+        Returns
+        -------
+        bool
+            Returns True if the two arrays are equal within the given tolerance; False otherwise.
+
+        See Also
+        --------
+        Array.equals, Array.isclose
+
+
+        Notes
+        -----
+        If the following equation is element-wise True, then `allclose` returns True.
+
+            absolute(array1 - array2) <= (atol + rtol * absolute(array2))
+
+        The above equation is not symmetric in array1 and array2, so that array1.allclose(array2) might be different
+        from array2.allclose(array1) in some rare cases.
+
+        Examples
+        --------
+        >>> arr1 = Array([1e10, 1e-7], "a=a0,a1")
+        >>> arr2 = Array([1.00001e10, 1e-8], "a=a0,a1")
+        >>> arr1.allclose(arr2)
+        False
+
+        >>> arr1 = Array([1e10, 1e-8], "a=a0,a1")
+        >>> arr2 = Array([1.00001e10, 1e-9], "a=a0,a1")
+        >>> arr1.allclose(arr2)
+        True
+
+        >>> arr1 = Array([1e10, 1e-8], "a=a0,a1")
+        >>> arr2 = Array([1.0001e10, 1e-9], "a=a0,a1")
+        >>> arr1.allclose(arr2)
+        False
+
+        >>> arr1 = Array([1.0, nan], "a=a0,a1")
+        >>> arr2 = Array([1.0, nan], "a=a0,a1")
+        >>> arr1.allclose(arr2)
+        True
+        >>> arr1.allclose(arr2, nans_equal=False)
+        False
+        """
+        return self.equals(other=other, rtol=rtol, atol=atol, nans_equal=nans_equal, check_axes=check_axes)
+
     @deprecate_kwarg('nan_equals', 'nans_equal')
     def eq(self, other, rtol=0, atol=0, nans_equal=False):
         """
@@ -5801,7 +5877,7 @@ class Array(ABCArray):
 
         See Also
         --------
-        Array.equals
+        Array.equals, Array.isclose
 
         Notes
         -----
@@ -5862,6 +5938,109 @@ class Array(ABCArray):
         else:
             (a1, a2), res_axes = make_numpy_broadcastable([self, other])
             return Array(np.isclose(a1.data, a2.data, rtol=rtol, atol=atol, equal_nan=nans_equal), res_axes)
+
+    def isclose(self, other: Any, rtol: float = 1e-05, atol: float = 1e-08, nans_equal: bool = True) -> 'Array':
+        """
+        Compares self with another array and return a boolean array where two arrays are element-wise equal within
+        a tolerance.
+
+        The tolerance values are positive, typically very small numbers.
+        The relative difference (rtol * abs(other)) and the absolute difference atol are added together to compare
+        against the absolute difference between self and other.
+
+        NaN values are treated as equal if they are in the same place and if `nans_equal=True`.
+
+        Parameters
+        ----------
+        other : Array-like
+            Input array. asarray() is used on a non-Array input.
+        rtol : float or int, optional
+            The relative tolerance parameter (see Notes). Defaults to 1e-05.
+        atol : float or int, optional
+            The absolute tolerance parameter (see Notes). Defaults to 1e-08.
+        nans_equal : boolean, optional
+            Whether or not to consider Nan values at the same positions in the two arrays as equal.
+            By default, an array containing NaN values is never equal to another array, even if that other array
+            also contains NaN values at the same positions. The reason is that a NaN value is different from
+            *anything*, including itself. Defaults to True.
+
+        Returns
+        -------
+        Array
+            Boolean array where each cell tells whether corresponding elements of self and other are equal
+            within a tolerance range.
+            If nans_equal=True, corresponding elements with NaN values will be considered as equal.
+
+        See Also
+        --------
+        Array.eq, Array.allclose
+
+        Notes
+        -----
+        For finite values, eq uses the following equation to test whether two values are equal:
+
+            absolute(array1 - array2) <= (atol + rtol * absolute(array2))
+
+        The above equation is not symmetric in array1 and array2, so that array1.eq(array2)
+        might be different from array2.eq(array1) in some rare cases.
+
+        Examples
+        --------
+        >>> arr1 = Array([1e10, 1e-7], "a=a0,a1")
+        >>> arr2 = Array([1.00001e10, 1e-8], "a=a0,a1")
+        >>> arr1.isclose(arr2)
+        a    a0     a1
+           True  False
+
+        >>> arr1 = Array([1e10, 1e-8], "a=a0,a1")
+        >>> arr2 = Array([1.00001e10, 1e-9], "a=a0,a1")
+        >>> arr1.isclose(arr2)
+        a    a0    a1
+           True  True
+
+        >>> arr1 = Array([1e10, 1e-8], "a=a0,a1")
+        >>> arr2 = Array([1.0001e10, 1e-9], "a=a0,a1")
+        >>> arr1.isclose(arr2)
+        a     a0    a1
+           False  True
+
+        >>> arr1 = Array([1.0, nan], "a=a0,a1")
+        >>> arr2 = Array([1.0, nan], "a=a0,a1")
+        >>> arr1.isclose(arr2)
+        a    a0    a1
+           True  True
+
+        >>> arr1 = Array([1.0, nan], "a=a0,a1")
+        >>> arr2 = Array([1.0, nan], "a=a0,a1")
+        >>> arr1.isclose(arr2, nans_equal=False)
+        a    a0     a1
+           True  False
+
+        >>> arr1 = Array([1e-8, 1e-7], "a=a0,a1")
+        >>> arr2 = Array([0.0, 0.0], "a=a0,a1")
+        >>> arr1.isclose(arr2)
+        a    a0     a1
+           True  False
+
+        >>> arr1 = Array([1e-100, 1e-7], "a=a0,a1")
+        >>> arr2 = Array([0.0, 0.0], "a=a0,a1")
+        >>> arr1.isclose(arr2, atol=0.0)
+        a     a0     a1
+           False  False
+
+        >>> arr1 = Array([1e-10, 1e-10], "a=a0,a1")
+        >>> arr2 = Array([1e-20, 0.0], "a=a0,a1")
+        >>> arr1.isclose(arr2)
+        a    a0    a1
+           True  True
+
+        >>> arr1 = Array([1e-10, 1e-10], "a=a0,a1")
+        >>> arr2 = Array([1e-20, 0.999999e-10], "a=a0,a1")
+        >>> arr1.isclose(arr2, atol=0.0)
+        a     a0    a1
+           False  True
+        """
+        return self.eq(other=other, rtol=rtol, atol=atol, nans_equal=nans_equal)
 
     def isin(self, test_values, assume_unique=False, invert=False):
         r"""
