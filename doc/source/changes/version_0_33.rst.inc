@@ -59,3 +59,6 @@ Fixes
 ^^^^^
 
 * fixed an edge case for group aggregates and labels in reverse order (closes :issue:`868`).
+
+* fixed :py:obj:`zip_array_values()` and :py:obj:`zip_array_items()` when argument axes
+  is an empty list or tuple (closes :issues:`883`).
