@@ -516,6 +516,7 @@ Miscellaneous
    convolve
    absolute
    fabs
+   isscalar
    isnan
    isinf
    nan_to_num

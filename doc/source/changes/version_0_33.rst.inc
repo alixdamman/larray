@@ -54,6 +54,7 @@ Miscellaneous improvements
 * scalar objects (i.e of type int, float, bool, string, date, time or datetime) belonging to a session
   are now also saved and loaded when using the HDF5 or pickle format (closes :issue:`842`).
 
+* implemented :py:obj:`isscalar()` function (closes :issue:`872`).
 
 Fixes
 ^^^^^

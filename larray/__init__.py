@@ -10,7 +10,7 @@ from larray.core.array import (Array, zeros, zeros_like, ones, ones_like, empty,
 from larray.core.session import Session, local_arrays, global_arrays, arrays
 from larray.core.constants import nan, inf, pi, e, euler_gamma
 from larray.core.metadata import Metadata
-from larray.core.ufuncs import wrap_elementwise_array_func, maximum, minimum, where
+from larray.core.ufuncs import wrap_elementwise_array_func, maximum, minimum, where, isscalar
 from larray.core.npufuncs import (sin, cos, tan, arcsin, arccos, arctan, hypot, arctan2, degrees,
                                   radians, unwrap, sinh, cosh, tanh, arcsinh, arccosh, arctanh,
                                   angle, real, imag, conj,
