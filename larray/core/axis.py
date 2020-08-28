@@ -4,6 +4,8 @@ import sys
 import warnings
 from itertools import product
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -566,6 +568,40 @@ class Axis(ABCAxis):
         # this might need to change if we ever support wildcard axes with real labels
         return isinstance(other, Axis) and self.name == other.name and self.iswildcard == other.iswildcard and \
             (len(self) == len(other) if self.iswildcard else np.array_equal(self.labels, other.labels))
+
+    def min(self) -> Any:
+        """
+        Get minimum of labels.
+
+        Returns
+        -------
+        label
+            Label with minimum value.
+
+        Examples
+        --------
+        >>> time = Axis('time=1991..2020')
+        >>> time.min()
+        1991
+        """
+        return np.nanmin(self.labels)
+
+    def max(self) -> Any:
+        """
+        Get maximum of labels.
+
+        Returns
+        -------
+        label
+            Label with maximum value.
+
+        Examples
+        --------
+        >>> time = Axis('time=1991..2020')
+        >>> time.max()
+        2020
+        """
+        return np.nanmax(self.labels)
 
     def matching(self, deprecated=None, pattern=None, regex=None):
         r"""
