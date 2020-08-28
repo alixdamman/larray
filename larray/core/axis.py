@@ -4,6 +4,8 @@ import sys
 import warnings
 from itertools import product
 
+from typing import Union
+
 import numpy as np
 import pandas as pd
 
@@ -233,6 +235,60 @@ class Axis(ABCAxis):
         (age.i[0:3] >> '0-2', age.i[3:6] >> '3-5', age.i[6:7] >> '6')
         """
         return self[:].by(length, step, template)
+
+    def astype(self, dtype: Union[str, np.dtype], casting: str = 'unsafe', inplace: bool = False) -> 'Axis':
+        """
+        Cast labels to a specified type.
+
+        Parameters
+        ----------
+        dtype: str or dtype
+            Typecode or data-type to which the labels are cast.
+
+        casting: str, optional
+            Controls what kind of data casting may occur. Defaults to ‘unsafe’.
+
+                * ‘no’ means the data types should not be cast at all.
+                * ‘equiv’ means only byte-order changes are allowed.
+                * ‘safe’ means only casts which can preserve values are allowed.
+                * ‘same_kind’ means only safe casts or casts within a kind, like float64 to float32, are allowed.
+                * ‘unsafe’ means any data conversions may be done.
+
+        inplace: bool, optional
+            Whether or not to modify the original object or return a new axis and leave the original intact.
+            Defaults to False.
+
+        Returns
+        -------
+        Axis
+            Axis with labels converted to the new type.
+
+        Examples
+        --------
+        >>> from larray import ndtest
+        >>> arr = ndtest('time=2015..2020')
+        >>> arr = arr.with_total()
+        >>> arr
+        time  2015  2016  2017  2018  2019  2020  total
+                 0     1     2     3     4     5     15
+        >>> arr = arr.drop('total')
+        >>> time = arr.time
+        >>> time
+        Axis([2015, 2016, 2017, 2018, 2019, 2020], 'time')
+        >>> time.dtype
+        dtype('O')
+        >>> time = time.astype(int)
+        >>> time.dtype
+        dtype('int32')
+        >>> time.astype(str, inplace=True)
+        >>> time.dtype
+        dtype('<U11')
+        """
+        labels = self.labels.astype(dtype=dtype, casting=casting)
+        if inplace:
+            self.labels = labels
+        else:
+            return Axis(labels=labels, name=self.name)
 
     def extend(self, labels):
         r"""
