@@ -2,9 +2,11 @@ from typing import Any
 
 import numpy as np
 
+from larray.core.array import ndtest
+
 
 def isscalar(element: Any) -> bool:
-    """
+    r"""
     Returns `True` if the type of element is a scalar type.
 
     Parameters
@@ -21,16 +23,19 @@ def isscalar(element: Any) -> bool:
     --------
     >>> isscalar(3.1)
     True
-    >>> isscalar(np.array(3.1))
-    False
     >>> isscalar([3.1])
     False
     >>> isscalar(False)
     True
     >>> isscalar('larray')
     True
-    >>> from larray import ndtest
-    >>> isscalar(ndtest((2, 2)))
+
+    >>> arr = ndtest((2, 2))
+    >>> arr
+    a\b  b0  b1
+     a0   0   1
+     a1   2   3
+    >>> isscalar(arr)
     False
     """
     return np.isscalar(element)
