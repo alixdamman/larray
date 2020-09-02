@@ -578,11 +578,21 @@ class Axis(ABCAxis):
         label
             Label with minimum value.
 
+        Warnings
+        --------
+        Fails on non-numeric labels.
+
         Examples
         --------
         >>> time = Axis('time=1991..2020')
         >>> time.min()
         1991
+
+        >>> country = Axis('country=Belgium,France,Germany')
+        >>> country.min()
+        Traceback (most recent call last):
+        ...
+        TypeError: cannot perform reduce with flexible type
         """
         return np.nanmin(self.labels)
 
@@ -595,11 +605,21 @@ class Axis(ABCAxis):
         label
             Label with maximum value.
 
+        Warnings
+        --------
+        Fails on non-numeric labels.
+
         Examples
         --------
         >>> time = Axis('time=1991..2020')
         >>> time.max()
         2020
+
+        >>> country = Axis('country=Belgium,France,Germany')
+        >>> country.max()
+        Traceback (most recent call last):
+        ...
+        TypeError: cannot perform reduce with flexible type
         """
         return np.nanmax(self.labels)
 
