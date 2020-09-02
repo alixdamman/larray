@@ -236,7 +236,7 @@ class Axis(ABCAxis):
         """
         return self[:].by(length, step, template)
 
-    def astype(self, dtype: Union[str, np.dtype], casting: str = 'unsafe', inplace: bool = False) -> 'Axis':
+    def astype(self, dtype: Union[str, np.dtype], casting: str = 'unsafe') -> 'Axis':
         """
         Cast labels to a specified type.
 
@@ -253,10 +253,6 @@ class Axis(ABCAxis):
                 * `safe` means only casts which can preserve values are allowed.
                 * `same_kind` means only safe casts or casts within a kind, like float64 to float32, are allowed.
                 * `unsafe` means any data conversions may be done.
-
-        inplace: bool, optional
-            Whether or not to modify the original object or return a new axis and leave the original intact.
-            Defaults to False.
 
         Returns
         -------
@@ -280,15 +276,8 @@ class Axis(ABCAxis):
         >>> time = time.astype(int)
         >>> time.dtype
         dtype('int32')
-        >>> time.astype(str, inplace=True)
-        >>> time.dtype
-        dtype('<U11')
         """
-        labels = self.labels.astype(dtype=dtype, casting=casting)
-        if inplace:
-            self.labels = labels
-        else:
-            return Axis(labels=labels, name=self.name)
+        return Axis(labels=self.labels.astype(dtype=dtype, casting=casting), name=self.name)
 
     def extend(self, labels):
         r"""
