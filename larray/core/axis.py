@@ -246,13 +246,13 @@ class Axis(ABCAxis):
             Typecode or data-type to which the labels are cast.
 
         casting: str, optional
-            Controls what kind of data casting may occur. Defaults to ‘unsafe’.
+            Controls what kind of data casting may occur. Defaults to `unsafe`.
 
-                * ‘no’ means the data types should not be cast at all.
-                * ‘equiv’ means only byte-order changes are allowed.
-                * ‘safe’ means only casts which can preserve values are allowed.
-                * ‘same_kind’ means only safe casts or casts within a kind, like float64 to float32, are allowed.
-                * ‘unsafe’ means any data conversions may be done.
+                * `no` means the data types should not be cast at all.
+                * `equiv` means only byte-order changes are allowed.
+                * `safe` means only casts which can preserve values are allowed.
+                * `same_kind` means only safe casts or casts within a kind, like float64 to float32, are allowed.
+                * `unsafe` means any data conversions may be done.
 
         inplace: bool, optional
             Whether or not to modify the original object or return a new axis and leave the original intact.
