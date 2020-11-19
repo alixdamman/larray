@@ -54,6 +54,8 @@ Miscellaneous improvements
 * scalar objects (i.e of type int, float, bool, string, date, time or datetime) belonging to a session
   are now also saved and loaded when using the HDF5 or pickle format (closes :issue:`842`).
 
+* added `min_y`, `max_y` and `periodicity` keyword arguments to the :py:obj:`ReportSheet.add_graph()` and
+  :py:obj:`ReportSheet.add_graphs()` methods (closes :issue:`901`).
 
 Fixes
 ^^^^^
