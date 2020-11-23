@@ -338,6 +338,8 @@ def test_excel_report_arrays():
     population_be_nan = population_be.astype(float)
     population_be_nan[2013] = nan
 
+    # fake simple user defined function to test if any user defined function (and their arguments)
+    # is actually called and correctly handled.
     def func(obj_chart, alternative_title):
         obj_chart.HasTitle = True
         obj_chart.ChartTitle.Caption = alternative_title
