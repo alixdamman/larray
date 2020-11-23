@@ -365,8 +365,8 @@ def test_excel_report_arrays():
     sheet_graphs.add_graph(population_be, 'Template = {}'.format(template_name), template_name)
     # 5) specify min_y and max_y
     sheet_graphs.add_graph(population_be, 'min (max) Y axis is 5e6 (6e6)', min_y=5e6, max_y=6e6)
-    # 6) specify the periodicity
-    sheet_graphs.add_graph(population_be, 'periodicity = every 2 years', periodicity=2)
+    # 6) specify the space between 2 ticks
+    sheet_graphs.add_graph(population_be, 'periodicity = every 2 years', xticks_spacing=2)
     # 7) pass a user defined function
     sheet_graphs.add_graph(population_be, func=func, alternative_title='alternative title')
 
@@ -403,12 +403,12 @@ def test_excel_report_arrays():
                             {'gender': population.gender, 'country': population.country},
                             template='line', width=350, height=250, graphs_per_row=3,
                             min_y=0, max_y=50e6)
-    # 3) specify the periodicity
+    # 3) specify the space between 2 ticks
     sheet_graphs.add_title('periodicity = every 2 years')
     sheet_graphs.add_graphs({'Population for {country} - {gender}': population},
                             {'gender': population.gender, 'country': population.country},
                             template='line', width=350, height=250, graphs_per_row=3,
-                            periodicity=2)
+                            xticks_spacing=2)
     # 4) pass a user defined function
     sheet_graphs.add_title('user defined function')
     sheet_graphs.add_graphs({'Population for {country} - {gender}': population},
