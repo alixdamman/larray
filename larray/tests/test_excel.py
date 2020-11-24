@@ -368,7 +368,8 @@ def test_excel_report_arrays():
     # 6) specify the space between 2 ticks
     sheet_graphs.add_graph(population_be, 'periodicity = every 2 years', xticks_spacing=2)
     # 7) pass a user defined function
-    sheet_graphs.add_graph(population_be, customize_func=customize_func, alternative_title='alternative title')
+    sheet_graphs.add_graph(population_be, customize_func=customize_func,
+                           customize_kwargs={'alternative_title': 'alternative title'})
 
     # test setting default size
     # 1) pass a not registered kind of item
@@ -414,7 +415,8 @@ def test_excel_report_arrays():
     sheet_graphs.add_graphs({'Population for {country} - {gender}': population},
                             {'gender': population.gender, 'country': population.country},
                             template='line', width=350, height=250, graphs_per_row=3,
-                            customize_func=customize_func, alternative_title='alternative title')
+                            customize_func=customize_func,
+                            customize_kwargs={'alternative_title': 'alternative title'})
 
     # generate Excel file
     fpath = 'test_excel_report_arrays.xlsx'
